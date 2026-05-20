@@ -1,10 +1,7 @@
 #!/bin/bash
-
-mkdir -p build
-mkdir -p output
 # =============================================================================
 # ATLAZES OS - Main Build Script
-# Version: 1.0.0
+# Version: 1.0.0-beta.1
 # Base: Debian 12 (Bookworm)
 # Editions: core | dev | security
 # =============================================================================
@@ -28,18 +25,27 @@ DEBIAN_RELEASE="bookworm"
 ARCH="amd64"
 BUILD_DIR="$(pwd)/build"
 OUTPUT_DIR="$(pwd)/output"
-MIRROR="http://deb.debian.org/debian"
+
+# Primary mirror — overridable via environment variable
+# GitHub Actions runners have good connectivity to deb.debian.org
+MIRROR="${ATLAZES_MIRROR:-http://deb.debian.org/debian}"
 
 # Edition: core | dev | security (default: core)
 EDITION="${ATLAZES_EDITION:-core}"
+
+# LOG_FILE — set early so helpers can use it
+mkdir -p "${BUILD_DIR}" 2>/dev/null || true
+LOG_FILE="${BUILD_DIR}/build-${EDITION}.log"
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 log()     { echo -e "${GREEN}[+]${NC} $*" | tee -a "$LOG_FILE"; }
 warn()    { echo -e "${YELLOW}[!]${NC} $*" | tee -a "$LOG_FILE"; }
 error()   { echo -e "${RED}[✗]${NC} $*" | tee -a "$LOG_FILE"; exit 1; }
-section() { echo -e "\n${CYAN}${BOLD}══════════════════════════════════════${NC}"; \
-            echo -e "${CYAN}${BOLD}  $*${NC}"; \
-            echo -e "${CYAN}${BOLD}══════════════════════════════════════${NC}\n"; }
+section() {
+    echo -e "\n${CYAN}${BOLD}══════════════════════════════════════${NC}" | tee -a "$LOG_FILE"
+    echo -e "${CYAN}${BOLD}  $*${NC}" | tee -a "$LOG_FILE"
+    echo -e "${CYAN}${BOLD}══════════════════════════════════════${NC}\n" | tee -a "$LOG_FILE"
+}
 
 # ─── Root check ───────────────────────────────────────────────────────────────
 check_root() {
@@ -54,8 +60,6 @@ setup_edition() {
         core)
             ISO_LABEL="ATLAZES-CORE-${OS_VERSION}"
             ISO_NAME="atlazes-os-${OS_VERSION}-core-${ARCH}.iso"
-            # Remove dev package list for core edition
-            rm -f "${BUILD_DIR}/lb/config/package-lists/05-development.list.chroot" 2>/dev/null || true
             log "Edition: Core (minimal, no dev tools)"
             ;;
         dev)
@@ -67,34 +71,52 @@ setup_edition() {
         security)
             ISO_LABEL="ATLAZES-SEC-${OS_VERSION}"
             ISO_NAME="atlazes-os-${OS_VERSION}-security-${ARCH}.iso"
-            # Remove dev package list for security edition
-            rm -f "${BUILD_DIR}/lb/config/package-lists/05-development.list.chroot" 2>/dev/null || true
             log "Edition: Security (security tools focus)"
             ;;
         *)
             error "Unknown edition: ${EDITION}. Use: core | dev | security"
             ;;
     esac
+    # Update log file path now that edition is confirmed
     LOG_FILE="${BUILD_DIR}/build-${EDITION}.log"
+    touch "$LOG_FILE"
 }
 
 # ─── Dependency check ─────────────────────────────────────────────────────────
 check_dependencies() {
     section "Checking Build Dependencies"
-    local deps=(live-build debootstrap squashfs-tools xorriso isolinux \
-                syslinux-efi grub-pc-bin grub-efi-amd64-bin mtools \
-                dosfstools git curl wget rsync)
+
+    # Update package list first
+    apt-get update -qq
+
+    local deps=(
+        live-build
+        debootstrap
+        squashfs-tools
+        xorriso
+        isolinux
+        syslinux-efi
+        grub-pc-bin
+        grub-efi-amd64-bin
+        mtools
+        dosfstools
+        git
+        curl
+        wget
+        rsync
+        librsvg2-bin
+        ca-certificates
+    )
     local missing=()
 
     for dep in "${deps[@]}"; do
-        if ! dpkg -l "$dep" &>/dev/null; then
+        if ! dpkg -l "$dep" 2>/dev/null | grep -q "^ii"; then
             missing+=("$dep")
         fi
     done
 
     if [[ ${#missing[@]} -gt 0 ]]; then
         warn "Installing missing dependencies: ${missing[*]}"
-        apt-get update -qq
         apt-get install -y "${missing[@]}"
     fi
     log "All dependencies satisfied."
@@ -125,31 +147,50 @@ init_livebuild() {
     mkdir -p "${BUILD_DIR}/lb"
     cd "${BUILD_DIR}/lb"
 
+    # ── lb config flags explained ──────────────────────────────────────────────
+    # --distribution bookworm          : Debian 12 base
+    # --architectures amd64            : 64-bit only
+    # --mirror-bootstrap               : mirror used by debootstrap (first stage)
+    # --mirror-chroot                  : mirror used inside chroot (package install)
+    # --mirror-binary                  : mirror written into installed system sources.list
+    # --archive-areas                  : include non-free firmware for hardware support
+    # --apt-recommends false           : keep ISO lean — no auto-installed recommends
+    # --binary-images iso-hybrid       : produces a file bootable from USB and optical
+    # --bootloaders "grub-efi,syslinux": UEFI (grub-efi) + BIOS (syslinux) support
+    # --linux-flavours amd64           : standard Debian amd64 kernel (NOT "none")
+    # --firmware-binary true           : include firmware in binary (ISO)
+    # --firmware-chroot true           : include firmware in chroot (live system)
+    # --security true                  : enable security.debian.org mirror
+    # --updates true                   : enable bookworm-updates
+    # --backports false                : no backports (stability)
+    # --memtest none                   : skip memtest86+ (saves space)
+    # --win32-loader false             : no Windows autorun file
+    # --zsync false                    : no zsync delta file
     lb config \
-        --mode debian \
         --distribution "$DEBIAN_RELEASE" \
         --architectures "$ARCH" \
-        --mirror-bootstrap "http://deb.debian.org/debian" \
-        --mirror-chroot "http://deb.debian.org/debian" \
-        --mirror-binary "http://deb.debian.org/debian" \
+        --mirror-bootstrap "$MIRROR" \
+        --mirror-chroot "$MIRROR" \
+        --mirror-binary "$MIRROR" \
+        --mirror-chroot-security "http://security.debian.org/debian-security" \
+        --mirror-binary-security "http://security.debian.org/debian-security" \
         --archive-areas "main contrib non-free non-free-firmware" \
         --apt-recommends false \
         --apt-secure true \
         --binary-images iso-hybrid \
+        --bootloaders "grub-efi,syslinux" \
+        --uefi-secure-boot disable \
         --memtest none \
         --iso-application "${OS_NAME} ${EDITION^}" \
         --iso-publisher "ATLAZES Project" \
         --iso-volume "${ISO_LABEL}" \
-        --linux-flavours "none" \
-        --bootstrap-qemu-static false \
-        --ignore-system-defaults \
+        --linux-flavours "amd64" \
         --firmware-binary true \
         --firmware-chroot true \
-        --apt-source-archives false \
-        --initsystem systemd \
+        --security true \
+        --updates true \
         --backports false \
         --win32-loader false \
-        --security false \
         --zsync false \
         2>&1 | tee -a "$LOG_FILE"
 
@@ -166,7 +207,9 @@ copy_config() {
     [[ -d "$src_config" ]] || error "Config directory not found: $src_config"
 
     # Package lists
-    cp -r "${src_config}/package-lists/"* "${dst_config}/package-lists/" 2>/dev/null || true
+    if [[ -d "${src_config}/package-lists" ]]; then
+        cp -r "${src_config}/package-lists/"* "${dst_config}/package-lists/" 2>/dev/null || true
+    fi
 
     # Edition-specific: remove dev list for non-dev editions
     if [[ "$EDITION" != "dev" ]]; then
@@ -174,12 +217,14 @@ copy_config() {
         log "Dev package list excluded (edition: ${EDITION})"
     fi
 
-    # Hooks
-    cp -r "${src_config}/hooks/"* "${dst_config}/hooks/" 2>/dev/null || true
-    chmod +x "${dst_config}/hooks/"*.hook.chroot 2>/dev/null || true
-    chmod +x "${dst_config}/hooks/"*.hook.binary 2>/dev/null || true
+    # Hooks — copy to the correct live-build hooks directory
+    if [[ -d "${src_config}/hooks" ]]; then
+        cp -r "${src_config}/hooks/"* "${dst_config}/hooks/" 2>/dev/null || true
+        find "${dst_config}/hooks/" -name "*.hook.chroot" -exec chmod +x {} \;
+        find "${dst_config}/hooks/" -name "*.hook.binary" -exec chmod +x {} \;
+    fi
 
-    # Chroot includes
+    # Chroot includes (files placed directly into the live filesystem)
     if [[ -d "${src_config}/includes.chroot" ]]; then
         cp -r "${src_config}/includes.chroot/"* "${dst_config}/includes.chroot/" 2>/dev/null || true
     fi
@@ -189,7 +234,7 @@ copy_config() {
         cp -r "${src_config}/preseed/"* "${dst_config}/preseed/" 2>/dev/null || true
     fi
 
-    # Inject edition marker
+    # Inject edition marker for hooks to read
     mkdir -p "${dst_config}/includes.chroot/etc"
     echo "ATLAZES_EDITION=${EDITION}" > "${dst_config}/includes.chroot/etc/atlazes-edition"
 
@@ -201,51 +246,6 @@ build_iso() {
     section "Building ISO (this will take 20-60 minutes)"
     cd "${BUILD_DIR}/lb"
 
-    echo ">>> FIX WGET (prevent build crash) <<<"
-
-    mkdir -p /usr/local/bin
-
-    cat > /usr/local/bin/wget <<'EOF'
-#!/bin/bash
-command /usr/bin/wget "$@" || true
-EOF
-
-    chmod +x /usr/local/bin/wget
-    export PATH="/usr/local/bin:$PATH"
-
-    echo ">>> FORCE CLEAN APT SOURCES <<<"
-
-    mkdir -p config/includes.chroot/etc/apt
-
-    cat > config/includes.chroot/etc/apt/sources.list <<EOF
-deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
-deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
-deb http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
-EOF
-
-    echo ">>> FORCE KERNEL INSTALL <<<"
-
-    mkdir -p config/includes.chroot/usr/local/bin
-
-    cat > config/includes.chroot/usr/local/bin/force-kernel.sh <<'EOF'
-#!/bin/bash
-apt-get update
-apt-get install -y linux-image-amd64 live-boot
-EOF
-
-    chmod +x config/includes.chroot/usr/local/bin/force-kernel.sh
-
-    mkdir -p config/hooks/normal
-
-    cat > config/hooks/normal/0002-force-kernel.hook.chroot <<'EOF'
-#!/bin/bash
-/usr/local/bin/force-kernel.sh
-EOF
-
-    chmod +x config/hooks/normal/0002-force-kernel.hook.chroot
-
-    echo ">>> START BUILD <<<"
-
     lb build 2>&1 | tee -a "$LOG_FILE"
 
     local iso_file
@@ -256,6 +256,7 @@ EOF
     mv "$iso_file" "${OUTPUT_DIR}/${ISO_NAME}"
     log "ISO built: ${OUTPUT_DIR}/${ISO_NAME}"
 }
+
 # ─── Generate checksums ───────────────────────────────────────────────────────
 generate_checksums() {
     section "Generating Checksums"
@@ -327,9 +328,6 @@ main() {
 
     local cmd
     cmd=$(parse_args "$@")
-
-    # LOG_FILE needs EDITION set before prepare_dirs
-    LOG_FILE="${BUILD_DIR}/build-${EDITION}.log"
 
     case "$cmd" in
         build)

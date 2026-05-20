@@ -1,0 +1,176 @@
+name: Build ATLAZES OS ISO
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      edition:
+        description: 'Edition to build'
+        required: true
+        default: 'core'
+        type: choice
+        options:
+          - core
+          - dev
+          - security
+
+jobs:
+  build:
+    name: Build ${{ github.event.inputs.edition || 'core' }} edition
+    runs-on: ubuntu-22.04
+
+    # GitHub Actions free tier: 6 hours max, 14GB disk, 7GB RAM
+    # live-build needs ~10GB free disk space
+    timeout-minutes: 120
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Free up disk space ────────────────────────────────────────────────
+      # GitHub runners have ~25GB total but much is used by pre-installed tools
+      # live-build needs ~10-15GB free
+      - name: Free up disk space
+        run: |
+          echo "Disk before cleanup:"
+          df -h
+
+          # Remove large pre-installed packages not needed for building
+          sudo apt-get remove -y \
+            '^dotnet-.*' \
+            '^llvm-.*' \
+            '^php.*' \
+            'azure-cli' \
+            'google-cloud-sdk' \
+            'google-chrome-stable' \
+            'firefox' \
+            'powershell' \
+            'mono-devel' \
+            'libgl1-mesa-dri' \
+            2>/dev/null || true
+
+          sudo apt-get autoremove -y 2>/dev/null || true
+          sudo apt-get clean
+
+          # Remove large directories
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost \
+            "$AGENT_TOOLSDIRECTORY" \
+            2>/dev/null || true
+
+          echo "Disk after cleanup:"
+          df -h
+
+      # ── 3. Install build dependencies ────────────────────────────────────────
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            live-build \
+            debootstrap \
+            squashfs-tools \
+            xorriso \
+            isolinux \
+            syslinux-efi \
+            grub-pc-bin \
+            grub-efi-amd64-bin \
+            mtools \
+            dosfstools \
+            curl \
+            wget \
+            rsync \
+            librsvg2-bin \
+            ca-certificates \
+            debian-archive-keyring
+
+      # ── 4. Verify live-build version ─────────────────────────────────────────
+      - name: Check live-build version
+        run: |
+          lb --version
+          debootstrap --version
+          echo "Debian release: bookworm"
+
+      # ── 5. Build ISO ─────────────────────────────────────────────────────────
+      - name: Build ISO (${{ github.event.inputs.edition || 'core' }} edition)
+        env:
+          ATLAZES_EDITION: ${{ github.event.inputs.edition || 'core' }}
+          # Use a fast Debian mirror
+          ATLAZES_MIRROR: http://deb.debian.org/debian
+        run: |
+          chmod +x build.sh
+          sudo -E ./build.sh build --edition="${ATLAZES_EDITION}"
+
+      # ── 6. Show build results ────────────────────────────────────────────────
+      - name: Show build results
+        if: always()
+        run: |
+          echo "=== Output directory ==="
+          ls -lh output/ 2>/dev/null || echo "No output directory"
+
+          echo "=== Disk usage ==="
+          df -h
+
+          echo "=== Last 50 lines of build log ==="
+          tail -50 build/build-*.log 2>/dev/null || echo "No build log found"
+
+      # ── 7. Upload ISO as artifact ────────────────────────────────────────────
+      - name: Upload ISO artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlazes-os-${{ github.event.inputs.edition || 'core' }}-iso
+          path: |
+            output/*.iso
+            output/*.sha256
+            output/*.md5
+          retention-days: 7
+
+      # ── 8. Upload build log on failure ───────────────────────────────────────
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-failure
+          path: build/build-*.log
+          retention-days: 3
+
+      # ── 9. Create GitHub Release (on tag push only) ──────────────────────────
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') && success()
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            output/*.iso
+            output/*.sha256
+            output/*.md5
+          body: |
+            ## ATLAZES OS ${{ github.ref_name }}
+
+            **Edition:** ${{ github.event.inputs.edition || 'core' }}
+            **Base:** Debian 12 (Bookworm)
+
+            ### Verify your download
+            ```bash
+            sha256sum -c atlazes-os-*.sha256
+            ```
+
+            ### Flash to USB
+            ```bash
+            sudo dd if=atlazes-os-*.iso of=/dev/sdX bs=4M status=progress oflag=sync
+            ```
+
+            See [BETA.md](BETA.md) for known issues and how to report bugs.
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
