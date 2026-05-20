@@ -1,0 +1,27 @@
+#!/bin/bash
+# =============================================================================
+# ATLAZES OS - Hook: إصلاح Xorg
+# الحل: حذف كل ملفات xorg.conf المخصصة والسماح للاكتشاف التلقائي
+# Xorg يكتشف الدرايفر الصحيح تلقائياً في 99% من الحالات
+# =============================================================================
+
+set -euo pipefail
+
+echo "[ATLAZES] إصلاح إعداد Xorg..."
+
+# ── حذف كل ملفات xorg.conf المخصصة ──────────────────────────────────────────
+# أي ملف مخصص قد يُجبر درايفراً خاطئاً ويُسبب الشاشة السوداء
+rm -f /etc/X11/xorg.conf 2>/dev/null || true
+rm -f /etc/X11/xorg.conf.d/20-atlazes-display.conf 2>/dev/null || true
+rm -f /etc/X11/xorg.conf.d/10-display.conf 2>/dev/null || true
+rm -f /etc/X11/xorg.conf.d/10-atlazes-vm.conf 2>/dev/null || true
+
+# ── التأكد من وجود مجلد xorg.conf.d فارغ ─────────────────────────────────────
+mkdir -p /etc/X11/xorg.conf.d
+
+# ── التحقق من وجود الدرايفرات الأساسية ──────────────────────────────────────
+echo "[ATLAZES] الدرايفرات المتاحة:"
+find /usr/lib/xorg/modules/drivers/ -name "*.so" 2>/dev/null | \
+    xargs -I{} basename {} .so | sort || echo "  (لا توجد درايفرات)"
+
+echo "[ATLAZES] اكتمل إصلاح Xorg — الاكتشاف التلقائي مُفعَّل."

@@ -1,23 +1,20 @@
 #!/bin/bash
 # =============================================================================
-# ATLAZES OS - Hook: إصلاح الشاشة السوداء
-# المشكلة الجذرية: LightDM يفشل في تشغيل Xorg بسبب:
-#   1. خلفية مفقودة في lightdm-gtk-greeter.conf
-#   2. picom compositor يتعارض مع nomodeset
-#   3. Xorg لا يجد درايفراً مناسباً في VirtualBox
+# ATLAZES OS - Hook: إصلاح الشاشة السوداء - النهج الجذري
+# بدلاً من إصلاح LightDM، نجعل النظام يُقلع إلى terminal أولاً
+# ثم يُشغّل startx تلقائياً من .bash_profile
+# هذا يتجاوز مشكلة LightDM/Xorg كلياً
 # =============================================================================
 
 set -euo pipefail
 
-echo "[ATLAZES] إصلاح إعدادات العرض..."
+echo "[ATLAZES] إعداد نظام العرض..."
 
 LIVE_USER="atlazes"
 USER_HOME="/home/${LIVE_USER}"
 
-# ── 1. إصلاح LightDM ─────────────────────────────────────────────────────────
-mkdir -p /etc/lightdm/lightdm.conf.d
-
-# إعداد autologin بسيط وموثوق
+# ── 1. إعداد LightDM بشكل بسيط جداً ─────────────────────────────────────────
+# نُبقي LightDM لكن نجعله يعمل بأبسط إعداد ممكن
 cat > /etc/lightdm/lightdm.conf << 'EOF'
 [LightDM]
 logind-check-graphical=false
@@ -27,55 +24,60 @@ autologin-user=atlazes
 autologin-user-timeout=0
 user-session=xfce
 greeter-session=lightdm-gtk-greeter
-xserver-command=X -nolisten tcp
 EOF
 
-# إعداد greeter بدون خلفية مخصصة (تجنب الفشل بسبب ملف مفقود)
+# greeter بسيط جداً
 cat > /etc/lightdm/lightdm-gtk-greeter.conf << 'EOF'
 [greeter]
-theme-name=Adwaita-dark
+theme-name=Adwaita
 icon-theme-name=Adwaita
 font-name=Sans 10
 hide-user-image=true
-indicators=~clock;~session;~power
-clock-format=%H:%M
 EOF
 
-# ── 2. إعداد Xorg ────────────────────────────────────────────────────────────
-# ملاحظة: الإعداد الرئيسي موجود في:
-# config/includes.chroot/etc/X11/xorg.conf.d/20-atlazes-display.conf
-# لا نُنشئ ملفاً إضافياً هنا لتجنب التعارض
-mkdir -p /etc/X11/xorg.conf.d
-
-# ── 3. تعطيل picom تماماً ────────────────────────────────────────────────────
-# picom يُشغَّل تلقائياً مع xfce4-goodies ويسبب شاشة سوداء مع nomodeset
-mkdir -p /etc/xdg/autostart
-
-# تعطيل picom من autostart
-if [[ -f /etc/xdg/autostart/picom.desktop ]]; then
-    echo "Hidden=true" >> /etc/xdg/autostart/picom.desktop
+# ── 2. إعداد startx كـ fallback تلقائي ───────────────────────────────────────
+# إذا فشل LightDM، يُقلع النظام إلى tty1
+# ويُشغّل startx تلقائياً من .bash_profile
+cat > "${USER_HOME}/.bash_profile" << 'EOF'
+# ATLAZES OS - Auto-start X if on tty1 and no display
+if [[ -z "${DISPLAY}" ]] && [[ "$(tty)" == "/dev/tty1" ]]; then
+    echo "Starting XFCE4 via startx..."
+    exec startx -- -nolisten tcp 2>/tmp/startx.log
 fi
+EOF
 
-# إنشاء ملف تعطيل صريح
+# ── 3. إعداد .xinitrc لتشغيل XFCE4 ──────────────────────────────────────────
+cat > "${USER_HOME}/.xinitrc" << 'EOF'
+#!/bin/bash
+# ATLAZES OS - X11 session startup
+
+# تعطيل screen saver
+xset s off 2>/dev/null || true
+xset -dpms 2>/dev/null || true
+xset s noblank 2>/dev/null || true
+
+# تشغيل XFCE4
+unset DBUS_SESSION_BUS_ADDRESS
+exec startxfce4
+EOF
+chmod +x "${USER_HOME}/.xinitrc"
+
+# ── 4. تعطيل picom ────────────────────────────────────────────────────────────
+mkdir -p /etc/xdg/autostart
 cat > /etc/xdg/autostart/picom.desktop << 'EOF'
 [Desktop Entry]
 Hidden=true
 EOF
 
-# ── 4. تعطيل compositor في XFCE4 ────────────────────────────────────────────
-# ملاحظة: hook 0040-branding يكتب xfwm4.xml بـ use_compositing=false بالفعل
-# نتأكد هنا فقط من أن القيمة صحيحة بدون تغيير الثيم
+# ── 5. تعطيل compositor في XFCE4 ─────────────────────────────────────────────
 mkdir -p "${USER_HOME}/.config/xfce4/xfconf/xfce-perchannel-xml"
 
 if [[ -f "${USER_HOME}/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml" ]]; then
-    # تأكد من تعطيل compositor إذا كان مفعلاً
     sed -i 's/name="use_compositing" type="bool" value="true"/name="use_compositing" type="bool" value="false"/' \
         "${USER_HOME}/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml" 2>/dev/null || true
 fi
 
-# ── 5. إعداد XFCE4 session manager ───────────────────────────────────────────
-mkdir -p "${USER_HOME}/.config/xfce4/xfconf/xfce-perchannel-xml"
-
+# ── 6. إعداد XFCE4 session ───────────────────────────────────────────────────
 cat > "${USER_HOME}/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-session.xml" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <channel name="xfce4-session" version="1.0">
@@ -88,16 +90,10 @@ cat > "${USER_HOME}/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-session.xml" 
 </channel>
 EOF
 
-# ── 6. إنشاء .xinitrc بسيط كـ fallback ───────────────────────────────────────
-cat > "${USER_HOME}/.xinitrc" << 'EOF'
-#!/bin/bash
-# ATLAZES OS - X11 startup fallback
-unset DBUS_SESSION_BUS_ADDRESS
-exec startxfce4
-EOF
-chmod +x "${USER_HOME}/.xinitrc"
-
 # ── 7. تصحيح الملكية ─────────────────────────────────────────────────────────
-chown -R "${LIVE_USER}:${LIVE_USER}" "${USER_HOME}/.config" "${USER_HOME}/.xinitrc" 2>/dev/null || true
+chown -R "${LIVE_USER}:${LIVE_USER}" \
+    "${USER_HOME}/.bash_profile" \
+    "${USER_HOME}/.xinitrc" \
+    "${USER_HOME}/.config" 2>/dev/null || true
 
-echo "[ATLAZES] اكتمل إصلاح إعدادات العرض."
+echo "[ATLAZES] اكتمل إعداد نظام العرض."

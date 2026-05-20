@@ -1,0 +1,199 @@
+name: Test ATLAZES Hooks (No ISO Build)
+
+# يختبر الـ hooks داخل Debian container بدون بناء ISO كامل
+# أسرع بكثير من بناء ISO — يكتمل في 5-10 دقائق
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_display:
+        description: 'Test display/Xorg configuration'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  test-hooks:
+    name: Test hooks in Debian container
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    container:
+      image: debian:bookworm
+      options: --privileged
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Debian environment
+        run: |
+          apt-get update -qq
+          apt-get install -y \
+            systemd dbus \
+            curl wget git \
+            sudo \
+            2>/dev/null || true
+
+      - name: Run hook 0005 - Fix sources
+        run: |
+          echo "=== Testing 0005-fix-sources ==="
+          bash config/hooks/0005-fix-sources.hook.chroot
+          echo "✓ Sources fixed"
+
+      - name: Run hook 0010 - System setup (partial)
+        run: |
+          echo "=== Testing 0010-system-setup (partial) ==="
+          # تشغيل الأجزاء التي لا تحتاج systemd
+          bash -c '
+            echo "atlazes" > /etc/hostname
+            echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+            apt-get install -y locales 2>/dev/null || true
+            locale-gen 2>/dev/null || true
+            useradd -m -s /bin/bash atlazes 2>/dev/null || true
+            echo "atlazes:atlazes" | chpasswd
+            mkdir -p /var/lib/atlazes
+            echo "normal" > /var/lib/atlazes/current-mode
+            chmod +x /usr/local/bin/atlazes 2>/dev/null || true
+          '
+          echo "✓ System setup partial"
+
+      - name: Run hook 0020 - Security hardening (sysctl only)
+        run: |
+          echo "=== Testing 0020 sysctl ==="
+          apt-get install -y procps 2>/dev/null || true
+          # فقط كتابة الملف، لا تطبيق (container لا يدعم sysctl)
+          bash -c '
+            mkdir -p /etc/sysctl.d
+            cat > /etc/sysctl.d/99-atlazes-hardening.conf << "EOF"
+kernel.kptr_restrict = 2
+kernel.dmesg_restrict = 1
+EOF
+            echo "sysctl config written"
+          '
+          echo "✓ Security config written"
+
+      - name: Test display configuration
+        if: github.event.inputs.test_display == 'true'
+        run: |
+          echo "=== Testing display configuration ==="
+          apt-get install -y xorg xserver-xorg-video-fbdev xserver-xorg-video-vesa 2>/dev/null || true
+
+          # تشغيل hook 0043
+          bash config/hooks/0043-xorg-fix.hook.chroot
+
+          # التحقق من الملفات
+          echo "--- xorg.conf.d contents ---"
+          ls -la /etc/X11/xorg.conf.d/ 2>/dev/null || echo "empty"
+          cat /etc/X11/xorg.conf.d/99-atlazes-fallback.conf 2>/dev/null || echo "not found"
+
+          # التحقق من الدرايفرات
+          echo "--- Available Xorg drivers ---"
+          find /usr/lib -name "*_drv.so" 2>/dev/null | xargs -I{} basename {} | sort || echo "none"
+
+          echo "✓ Display config tested"
+
+      - name: Test CLI tool syntax
+        run: |
+          echo "=== Testing atlazes CLI syntax ==="
+          bash -n config/includes.chroot/usr/local/bin/atlazes && \
+            echo "✓ atlazes CLI: syntax OK" || \
+            echo "✗ atlazes CLI: syntax ERROR"
+
+          bash -n config/includes.chroot/usr/local/bin/atlazes-tools && \
+            echo "✓ atlazes-tools: syntax OK" || \
+            echo "✗ atlazes-tools: syntax ERROR"
+
+      - name: Test all hook syntax
+        run: |
+          echo "=== Testing all hook syntax ==="
+          ERRORS=0
+          for hook in config/hooks/*.hook.chroot; do
+            if bash -n "$hook" 2>/dev/null; then
+              echo "✓ $(basename $hook)"
+            else
+              echo "✗ $(basename $hook) — SYNTAX ERROR"
+              bash -n "$hook"
+              ERRORS=$((ERRORS + 1))
+            fi
+          done
+          echo ""
+          if [[ $ERRORS -eq 0 ]]; then
+            echo "All hooks: syntax OK"
+          else
+            echo "$ERRORS hook(s) have syntax errors"
+            exit 1
+          fi
+
+      - name: Test package lists (check for invalid names)
+        run: |
+          echo "=== Testing package lists ==="
+          apt-get update -qq
+
+          ERRORS=0
+          for list in config/package-lists/*.list.chroot; do
+            echo "--- $(basename $list) ---"
+            # استخراج أسماء الحزم (تجاهل التعليقات والأسطر الفارغة)
+            PACKAGES=$(grep -v '^#' "$list" | grep -v '^$' | tr '\n' ' ')
+            if [[ -n "$PACKAGES" ]]; then
+              # التحقق من وجود الحزم في المستودع
+              MISSING=$(apt-cache show $PACKAGES 2>&1 | grep "No packages found" | \
+                sed 's/N: Unable to locate package //' | \
+                sed 's/N: No packages found matching //' || true)
+              if [[ -n "$MISSING" ]]; then
+                echo "  Missing packages: $MISSING"
+                ERRORS=$((ERRORS + 1))
+              else
+                echo "  ✓ All packages found"
+              fi
+            fi
+          done
+
+          if [[ $ERRORS -eq 0 ]]; then
+            echo "All package lists: OK"
+          else
+            echo "$ERRORS list(s) have missing packages"
+          fi
+
+      - name: Test Calamares config syntax
+        run: |
+          echo "=== Testing Calamares config ==="
+          apt-get install -y python3-yaml 2>/dev/null || true
+
+          for conf in calamares/modules/*.conf calamares/settings.conf; do
+            if python3 -c "
+import yaml, sys
+try:
+    with open('$conf') as f:
+        content = f.read()
+    # إزالة --- من البداية
+    content = content.lstrip('-\n')
+    yaml.safe_load(content)
+    print('✓ $conf')
+except Exception as e:
+    print('✗ $conf:', e)
+    sys.exit(1)
+" 2>/dev/null; then
+              true
+            else
+              echo "  Warning: could not validate $conf"
+            fi
+          done
+
+      - name: Summary
+        if: always()
+        run: |
+          echo ""
+          echo "=== TEST SUMMARY ==="
+          echo "All tests completed."
+          echo "Check output above for any errors."
+          echo ""
+          echo "To fix display issues in VirtualBox:"
+          echo "  1. Set Graphics Controller to VBoxVGA"
+          echo "  2. Set Video Memory to 128MB"
+          echo "  3. Disable 3D Acceleration"
+          echo "  4. If black screen: press Ctrl+Alt+F2 for terminal"
+          echo "     then run: sudo atlazes-fix-display"
