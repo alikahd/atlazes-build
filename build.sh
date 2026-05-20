@@ -231,7 +231,7 @@ EOF
 
     echo ">>> START BUILD <<<"
 
-    lb build 2>&1 | tee -a "$LOG_FILE"
+   lb build --skip chroot_linux-image 2>&1 | tee -a "$LOG_FILE"
 
     local iso_file
     iso_file=$(find "${BUILD_DIR}/lb" -maxdepth 1 -name "*.iso" | head -1)

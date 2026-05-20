@@ -84,6 +84,7 @@ os-prober
 initramfs-tools
 linux-image-amd64
 linux-headers-amd64
+live-boot
 
 # Microcode (CPU security patches)
 intel-microcode
