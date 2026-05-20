@@ -1,0 +1,86 @@
+#!/bin/bash
+# =============================================================================
+# ATLAZES OS - Hook: System Setup
+# Runs inside the chroot during build
+# =============================================================================
+
+set -euo pipefail
+
+echo "[ATLAZES] Running system setup hook..."
+
+# ─── Set hostname ─────────────────────────────────────────────────────────────
+echo "atlazes" > /etc/hostname
+cat > /etc/hosts << 'EOF'
+127.0.0.1   localhost
+127.0.1.1   atlazes
+::1         localhost ip6-localhost ip6-loopback
+ff02::1     ip6-allnodes
+ff02::2     ip6-allrouters
+EOF
+
+# ─── Set locale ───────────────────────────────────────────────────────────────
+echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+locale-gen
+update-locale LANG=en_US.UTF-8
+
+# ─── Set timezone ─────────────────────────────────────────────────────────────
+ln -sf /usr/share/zoneinfo/UTC /etc/localtime
+echo "UTC" > /etc/timezone
+
+# ─── Create live user ─────────────────────────────────────────────────────────
+if ! id "atlazes" &>/dev/null; then
+    useradd -m -s /bin/bash -G sudo,audio,video,plugdev,netdev,bluetooth,cdrom,floppy,dip atlazes
+    echo "atlazes:atlazes" | chpasswd
+    echo "root:atlazes" | chpasswd
+fi
+
+# ─── Autologin for live session ───────────────────────────────────────────────
+mkdir -p /etc/lightdm/lightdm.conf.d
+cat > /etc/lightdm/lightdm.conf.d/10-autologin.conf << 'EOF'
+[Seat:*]
+autologin-user=atlazes
+autologin-user-timeout=0
+user-session=xfce
+EOF
+
+# ─── Enable services ──────────────────────────────────────────────────────────
+systemctl enable NetworkManager 2>/dev/null || true
+systemctl enable lightdm        2>/dev/null || true
+systemctl enable bluetooth      2>/dev/null || true
+systemctl enable cups           2>/dev/null || true
+systemctl enable apparmor       2>/dev/null || true
+systemctl enable ufw            2>/dev/null || true
+systemctl enable dnscrypt-proxy 2>/dev/null || true
+systemctl enable tlp            2>/dev/null || true
+systemctl enable auditd         2>/dev/null || true
+systemctl enable fail2ban       2>/dev/null || true
+
+# ─── Disable unnecessary services ─────────────────────────────────────────────
+systemctl disable avahi-daemon  2>/dev/null || true
+systemctl disable rpcbind       2>/dev/null || true
+systemctl disable nfs-common    2>/dev/null || true
+systemctl disable rsync         2>/dev/null || true
+systemctl disable samba         2>/dev/null || true
+systemctl disable whoopsie      2>/dev/null || true
+systemctl disable apport        2>/dev/null || true
+systemctl disable popularity-contest 2>/dev/null || true
+
+# ─── Configure sudo ───────────────────────────────────────────────────────────
+echo "atlazes ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/atlazes-live
+chmod 440 /etc/sudoers.d/atlazes-live
+
+# ─── ATLAZES state directory ──────────────────────────────────────────────────
+mkdir -p /var/lib/atlazes
+echo "normal" > /var/lib/atlazes/current-mode
+chmod 755 /var/lib/atlazes
+chmod 644 /var/lib/atlazes/current-mode
+
+# ─── Make CLI tools executable ────────────────────────────────────────────────
+chmod +x /usr/local/bin/atlazes       2>/dev/null || true
+chmod +x /usr/local/bin/atlazes-tools 2>/dev/null || true
+
+# ─── Add live user to proc group ─────────────────────────────────────────────
+groupadd -f proc 2>/dev/null || true
+usermod -aG proc atlazes 2>/dev/null || true
+
+echo "[ATLAZES] System setup hook complete."

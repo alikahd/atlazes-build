@@ -1,0 +1,89 @@
+# =============================================================================
+# ATLAZES OS - Hardware Support & Firmware
+# Audited: consolidated firmware list, removed duplicates
+# =============================================================================
+
+# ── Non-free firmware (broad hardware support) ────────────────────────────────
+firmware-linux
+firmware-linux-nonfree
+firmware-linux-free
+firmware-misc-nonfree
+firmware-amd-graphics
+firmware-intel-sound
+firmware-iwlwifi
+firmware-atheros
+firmware-brcm80211
+firmware-realtek
+firmware-ralink
+firmware-zd1211
+firmware-libertas
+firmware-ti-connectivity
+firmware-sof-signed
+
+# ── GPU drivers ───────────────────────────────────────────────────────────────
+xserver-xorg-video-amdgpu
+xserver-xorg-video-radeon
+xserver-xorg-video-nouveau
+xserver-xorg-video-intel
+xserver-xorg-video-vesa
+xserver-xorg-video-fbdev
+mesa-utils
+mesa-vulkan-drivers
+vulkan-tools
+libgl1-mesa-dri
+libglx-mesa0
+
+# ── Input devices ─────────────────────────────────────────────────────────────
+xserver-xorg-input-libinput
+xserver-xorg-input-synaptics
+xserver-xorg-input-wacom
+
+# ── USB ───────────────────────────────────────────────────────────────────────
+usbutils
+libusb-1.0-0
+usb-modeswitch
+usb-modeswitch-data
+
+# ── Bluetooth ─────────────────────────────────────────────────────────────────
+bluez
+bluez-firmware
+blueman
+pulseaudio-module-bluetooth
+
+# ── WiFi tools ────────────────────────────────────────────────────────────────
+wireless-tools
+wpasupplicant
+iw
+rfkill
+
+# ── Touchpad ──────────────────────────────────────────────────────────────────
+libinput-tools
+xinput
+
+# ── Webcam ────────────────────────────────────────────────────────────────────
+v4l-utils
+guvcview
+
+# ── Printer support ───────────────────────────────────────────────────────────
+cups
+cups-filters
+cups-pdf
+hplip
+foomatic-db
+foomatic-db-engine
+
+# ── Scanner support ───────────────────────────────────────────────────────────
+sane-utils
+xsane
+
+# ── Power management ──────────────────────────────────────────────────────────
+acpid
+acpi-support
+tlp
+tlp-rdw
+powertop
+thermald
+
+# ── Laptop extras ─────────────────────────────────────────────────────────────
+laptop-detect
+hdparm

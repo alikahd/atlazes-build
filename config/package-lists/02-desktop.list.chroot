@@ -1,0 +1,109 @@
+# =============================================================================
+# ATLAZES OS - Desktop Environment (XFCE4)
+# =============================================================================
+
+# XFCE4 core
+xfce4
+xfce4-goodies
+xfce4-terminal
+xfce4-taskmanager
+xfce4-power-manager
+xfce4-screensaver
+xfce4-notifyd
+xfce4-whiskermenu-plugin
+xfce4-clipman-plugin
+xfce4-pulseaudio-plugin
+xfce4-weather-plugin
+xfce4-systemload-plugin
+xfce4-netload-plugin
+xfce4-cpugraph-plugin
+xfce4-battery-plugin
+xfce4-datetime-plugin
+xfce4-screenshooter
+xfce4-settings
+xfwm4
+xfdesktop4
+thunar
+thunar-archive-plugin
+thunar-volman
+thunar-media-tags-plugin
+
+# Display manager
+lightdm
+lightdm-gtk-greeter
+lightdm-gtk-greeter-settings
+
+# Display server
+xorg
+xserver-xorg
+xserver-xorg-input-all
+xserver-xorg-video-all
+x11-utils
+x11-xserver-utils
+xinit
+xdg-utils
+xdg-user-dirs
+xdg-user-dirs-gtk
+
+# GTK themes and icons
+arc-theme
+papirus-icon-theme
+gtk2-engines-murrine
+gtk2-engines-pixbuf
+gnome-themes-extra
+adwaita-icon-theme
+
+# Compositor
+picom
+
+# Fonts
+fonts-ubuntu
+fonts-open-sans
+fonts-roboto
+
+# File manager extras
+gvfs
+gvfs-backends
+gvfs-fuse
+
+# Image viewer
+ristretto
+
+# Document viewer
+evince
+atril
+
+# Text editor
+mousepad
+gedit
+
+# Archive manager
+file-roller
+engrampa
+
+# Media player
+vlc
+mpv
+
+# Screenshot
+flameshot
+
+# Clipboard
+xclip
+xdotool
+
+# Notification
+dunst
+
+# App launcher
+rofi
+
+# Wallpaper
+nitrogen
+feh
+
+# System info widget
+conky-all
+
+# Accessibility
+at-spi2-core

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=ATLAZES Tools
+Comment=ATLAZES OS Security and Privacy Tools
+Exec=xfce4-terminal -e "atlazes-tools status"
+Icon=security-high
+Terminal=true
+Categories=System;Security;
+Keywords=security;privacy;atlazes;firewall;vpn;
+StartupNotify=false

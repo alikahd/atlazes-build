@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Install ATLAZES OS
+Comment=Install ATLAZES OS to your hard drive
+Exec=sudo calamares
+Icon=system-software-install
+Terminal=false
+Categories=System;
+Keywords=install;setup;calamares;
+StartupNotify=true

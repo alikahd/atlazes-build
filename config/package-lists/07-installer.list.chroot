@@ -1,0 +1,46 @@
+# =============================================================================
+# ATLAZES OS - Calamares Installer Dependencies
+# =============================================================================
+
+# Calamares installer
+calamares
+calamares-settings-debian
+
+# Partitioning backend
+parted
+libparted2
+kpmcore
+
+# Encryption support
+cryptsetup
+cryptsetup-bin
+libcryptsetup12
+
+# Bootloader
+grub-pc
+grub-efi-amd64
+grub2-common
+grub-common
+os-prober
+
+# Python (Calamares modules)
+python3
+python3-yaml
+python3-jsonschema
+
+# Qt (Calamares UI)
+libqt5core5a
+libqt5gui5
+libqt5widgets5
+libqt5network5
+libqt5dbus5
+libqt5xml5
+libqt5svg5
+qml-module-qtquick2
+qml-module-qtquick-controls2
+
+# Network check
+network-manager
+
+# Timezone
+tzdata

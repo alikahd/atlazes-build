@@ -1,0 +1,6 @@
+#!/bin/bash
+# =============================================================================
+# ATLAZES OS - atlazes-tools compatibility shim
+# Redirects to the new 'atlazes' CLI
+# =============================================================================
+exec /usr/local/bin/atlazes "$@"

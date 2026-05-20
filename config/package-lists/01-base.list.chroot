@@ -1,0 +1,128 @@
+# =============================================================================
+# ATLAZES OS - Base System Packages
+# Audited and fixed for Debian 12 Bookworm compatibility
+# =============================================================================
+
+# Core system utilities
+sudo
+curl
+wget
+git
+nano
+vim
+htop
+neofetch
+unzip
+p7zip-full
+rsync
+tree
+less
+file
+lsof
+dstat
+iotop
+sysstat
+pciutils
+usbutils
+lshw
+dmidecode
+inxi
+
+# Network tools
+net-tools
+iproute2
+iputils-ping
+traceroute
+dnsutils
+nmap
+netcat-openbsd
+whois
+tcpdump
+iftop
+nethogs
+ethtool
+wireless-tools
+wpasupplicant
+network-manager
+network-manager-gnome
+
+# Filesystem tools
+gparted
+parted
+fdisk
+gdisk
+ntfs-3g
+exfat-fuse
+exfatprogs
+dosfstools
+e2fsprogs
+btrfs-progs
+xfsprogs
+cryptsetup
+lvm2
+
+# Archive tools
+tar
+gzip
+bzip2
+xz-utils
+zip
+p7zip-full
+
+# System monitoring
+procps
+psmisc
+acpi
+lm-sensors
+smartmontools
+
+# Boot and firmware
+grub-pc
+grub-efi-amd64
+grub2-common
+os-prober
+initramfs-tools
+linux-image-amd64
+linux-headers-amd64
+
+# Microcode (CPU security patches)
+intel-microcode
+amd64-microcode
+
+# Locale and fonts
+locales
+tzdata
+fonts-liberation
+fonts-dejavu
+fonts-noto
+fonts-noto-color-emoji
+fontconfig
+
+# Image conversion (needed for wallpaper SVG → PNG during build)
+librsvg2-bin
+
+# Printing support
+cups
+cups-client
+system-config-printer
+
+# Bluetooth
+bluez
+blueman
+
+# Audio
+pulseaudio
+pulseaudio-utils
+alsa-utils
+pavucontrol
+
+# Power management
+acpid
+tlp
+tlp-rdw
+powertop
+
+# Virtualization guest support (auto-detected at runtime)
+open-vm-tools
+open-vm-tools-desktop
+spice-vdagent

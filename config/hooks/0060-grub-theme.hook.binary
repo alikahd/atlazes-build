@@ -1,0 +1,155 @@
+#!/bin/bash
+# =============================================================================
+# ATLAZES OS - Hook: GRUB Theme (binary stage)
+# Runs after the filesystem is assembled
+# BUG FIXES:
+#   - Removed automatic-ubiquity (Ubiquity is Ubuntu's installer, not Calamares)
+#   - Removed mds=full,nosmt from live entry (nosmt kills multi-core performance)
+#   - Added net.ifnames=0 biosdevname=0 to all entries for consistent NIC naming
+#   - Fixed GRUB timeout: 10s is too long; 5s matches installed system
+# =============================================================================
+
+set -euo pipefail
+
+echo "[ATLAZES] Configuring GRUB theme..."
+
+THEME_DIR="binary/boot/grub/themes/atlazes"
+mkdir -p "$THEME_DIR"
+
+# ─── GRUB theme.txt ───────────────────────────────────────────────────────────
+cat > "${THEME_DIR}/theme.txt" << 'EOF'
+# ATLAZES OS GRUB Theme
+
+title-text: ""
+desktop-color: "#0d1117"
+desktop-image: "background.png"
+terminal-font: "Noto Sans Regular 14"
+terminal-left: "0"
+terminal-top: "0"
+terminal-width: "100%"
+terminal-height: "100%"
+terminal-border: "0"
+
++ boot_menu {
+  left = 50%-200
+  top = 50%-100
+  width = 400
+  height = 200
+  item_font = "Noto Sans Regular 14"
+  item_color = "#c9d1d9"
+  selected_item_color = "#ffffff"
+  item_height = 36
+  item_padding = 10
+  item_spacing = 4
+  selected_item_pixmap_style = "select_*.png"
+  scrollbar = false
+}
+
++ label {
+  top = 50%+120
+  left = 0
+  width = 100%
+  align = "center"
+  id = "__timeout__"
+  text = "Booting in %d seconds..."
+  color = "#58a6ff"
+  font = "Noto Sans Regular 12"
+}
+
++ label {
+  top = 50%-160
+  left = 0
+  width = 100%
+  align = "center"
+  text = "ATLAZES OS"
+  color = "#388bfd"
+  font = "Noto Sans Bold 28"
+}
+
++ label {
+  top = 50%-120
+  left = 0
+  width = 100%
+  align = "center"
+  text = "Secure · Private · Professional"
+  color = "#8b949e"
+  font = "Noto Sans Regular 14"
+}
+EOF
+
+# ─── GRUB config ──────────────────────────────────────────────────────────────
+mkdir -p binary/boot/grub
+cat > binary/boot/grub/grub.cfg << 'EOF'
+# ATLAZES OS GRUB Configuration
+
+set default=0
+set timeout=5
+set timeout_style=menu
+
+# Load theme
+insmod all_video
+insmod gfxterm
+insmod png
+set gfxmode=1920x1080x32,1280x720x32,auto
+set gfxpayload=keep
+terminal_output gfxterm
+
+set theme=/boot/grub/themes/atlazes/theme.txt
+export theme
+
+# ── Common kernel parameters ──────────────────────────────────────────────────
+# net.ifnames=0 biosdevname=0: use classic eth0/wlan0 naming (consistent across live/installed)
+# apparmor=1 security=apparmor: enable AppArmor
+# Hardening: pti, spectre_v2, tsx, mds, init_on_alloc, page_alloc.shuffle, vsyscall=none
+
+# ── Menu entries ──────────────────────────────────────────────────────────────
+
+menuentry "ATLAZES OS - Live Session" --class atlazes --class gnu-linux --class gnu --class os {
+    set background_color=black
+    linux /live/vmlinuz boot=live components quiet splash \
+        apparmor=1 security=apparmor \
+        lsm=lockdown,yama,apparmor \
+        init_on_alloc=1 init_on_free=1 \
+        page_alloc.shuffle=1 \
+        pti=on vsyscall=none \
+        spectre_v2=on spec_store_bypass_disable=on \
+        tsx=off mds=full \
+        randomize_kstack_offset=on \
+        net.ifnames=0 biosdevname=0
+    initrd /live/initrd.img
+}
+
+menuentry "ATLAZES OS - Live (Safe Mode)" --class atlazes {
+    linux /live/vmlinuz boot=live components nomodeset xforcevesa \
+        apparmor=1 security=apparmor \
+        net.ifnames=0 biosdevname=0
+    initrd /live/initrd.img
+}
+
+menuentry "ATLAZES OS - Install" --class atlazes {
+    linux /live/vmlinuz boot=live components quiet splash \
+        apparmor=1 security=apparmor \
+        net.ifnames=0 biosdevname=0
+    initrd /live/initrd.img
+}
+
+menuentry "ATLAZES OS - Forensic Mode (No Mount)" --class atlazes {
+    linux /live/vmlinuz boot=live components quiet splash \
+        apparmor=1 security=apparmor \
+        noswap nopersist \
+        net.ifnames=0 biosdevname=0
+    initrd /live/initrd.img
+}
+
+menuentry "Boot from Hard Drive" --class hdd {
+    insmod chain
+    set root=(hd0)
+    chainloader +1
+}
+
+menuentry "UEFI Firmware Settings" --class settings {
+    fwsetup
+}
+EOF
+
+echo "[ATLAZES] GRUB theme configured."

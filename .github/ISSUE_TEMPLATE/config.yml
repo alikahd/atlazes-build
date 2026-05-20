@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/atlazes-os/atlazes-os/tree/main/docs
+    about: Read the docs before opening an issue
+  - name: Security Transparency
+    url: https://github.com/atlazes-os/atlazes-os/blob/main/docs/security-transparency.md
+    about: Understand what ATLAZES OS does and does not protect against
+  - name: Troubleshooting Guide
+    url: https://github.com/atlazes-os/atlazes-os/blob/main/docs/troubleshooting.md
+    about: Common issues and solutions
