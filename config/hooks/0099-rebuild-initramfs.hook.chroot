@@ -1,0 +1,78 @@
+#!/bin/bash
+# =============================================================================
+# ATLAZES OS - Hook: إعادة بناء initramfs (آخر hook يُشغَّل)
+# يجب أن يكون رقمه 0099 ليُشغَّل بعد تثبيت جميع الحزم
+# الهدف: ضمان أن initramfs يحتوي على وحدات live-boot و squashfs و overlay
+# =============================================================================
+
+set -euo pipefail
+
+echo "[ATLAZES] إعادة بناء initramfs النهائي..."
+
+# ── التحقق من وجود الـ kernel ─────────────────────────────────────────────────
+KERNEL_COUNT=$(ls /boot/vmlinuz-* 2>/dev/null | wc -l)
+if [[ "$KERNEL_COUNT" -eq 0 ]]; then
+    echo "[ATLAZES] خطأ: لا يوجد kernel في /boot/ — تثبيت linux-image-amd64..."
+    apt-get install -y linux-image-amd64 2>/dev/null || {
+        echo "[ATLAZES] فشل تثبيت الـ kernel!"
+        ls -la /boot/ || true
+        exit 1
+    }
+fi
+
+echo "[ATLAZES] الـ kernels الموجودة:"
+ls -lh /boot/vmlinuz-* 2>/dev/null || true
+
+# ── التحقق من وجود live-boot ──────────────────────────────────────────────────
+for pkg in live-boot live-boot-initramfs-tools live-config live-config-systemd; do
+    if ! dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then
+        echo "[ATLAZES] تثبيت: $pkg"
+        apt-get install -y "$pkg" 2>/dev/null || true
+    fi
+done
+
+# ── إضافة وحدات squashfs و overlay إلى initramfs ─────────────────────────────
+mkdir -p /etc/initramfs-tools/conf.d
+
+# إعداد BOOT=live
+cat > /etc/initramfs-tools/conf.d/live.conf << 'EOF'
+BOOT=live
+EOF
+
+# إضافة الوحدات الضرورية
+MODULES_FILE="/etc/initramfs-tools/modules"
+for mod in squashfs overlay loop; do
+    if ! grep -q "^${mod}" "$MODULES_FILE" 2>/dev/null; then
+        echo "$mod" >> "$MODULES_FILE"
+        echo "[ATLAZES] أُضيفت وحدة: $mod"
+    fi
+done
+
+# ── إعادة توليد initramfs لجميع الـ kernels ──────────────────────────────────
+echo "[ATLAZES] توليد initramfs..."
+update-initramfs -u -k all 2>&1
+
+# ── التحقق النهائي ────────────────────────────────────────────────────────────
+echo "[ATLAZES] محتويات /boot/:"
+ls -lh /boot/ 2>/dev/null || true
+
+INITRD_COUNT=$(ls /boot/initrd.img-* 2>/dev/null | wc -l)
+if [[ "$INITRD_COUNT" -eq 0 ]]; then
+    echo "[ATLAZES] خطأ حرج: لم يُنشأ أي initrd!"
+    exit 1
+fi
+
+# التحقق من أن live-boot موجود داخل initramfs
+KVER=$(ls /boot/vmlinuz-* 2>/dev/null | head -1 | sed 's|/boot/vmlinuz-||')
+if [[ -n "$KVER" ]]; then
+    echo "[ATLAZES] فحص محتوى initramfs للـ kernel: $KVER"
+    if lsinitramfs "/boot/initrd.img-${KVER}" 2>/dev/null | grep -q "live"; then
+        echo "[ATLAZES] ✓ live-boot موجود في initramfs"
+    else
+        echo "[ATLAZES] تحذير: live-boot غير موجود في initramfs — إعادة المحاولة..."
+        # إعادة توليد بشكل صريح
+        mkinitramfs -o "/boot/initrd.img-${KVER}" "$KVER" 2>&1 || true
+    fi
+fi
+
+echo "[ATLAZES] اكتمل بناء initramfs."

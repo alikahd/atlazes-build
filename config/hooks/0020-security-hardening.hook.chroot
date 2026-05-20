@@ -105,14 +105,16 @@ EOF
 sysctl --system 2>/dev/null || true
 
 # ─── GRUB kernel parameters ───────────────────────────────────────────────────
+# ملاحظة: هذا الإعداد للنظام المثبت فقط
+# الجلسة الحية تستخدم grub.cfg من hook 0060-grub-theme.hook.binary
 cat > /etc/default/grub << 'EOF'
 GRUB_DEFAULT=0
 GRUB_TIMEOUT=5
 GRUB_DISTRIBUTOR="ATLAZES OS"
-GRUB_CMDLINE_LINUX_DEFAULT="quiet splash apparmor=1 security=apparmor lsm=lockdown,yama,apparmor init_on_alloc=1 init_on_free=1 page_alloc.shuffle=1 pti=on vsyscall=none debugfs=off spectre_v2=on spec_store_bypass_disable=on tsx=off tsx_async_abort=full mds=full randomize_kstack_offset=on net.ifnames=0 biosdevname=0"
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash apparmor=1 security=apparmor lsm=lockdown,yama,apparmor init_on_alloc=1 init_on_free=1 pti=on vsyscall=none spectre_v2=on spec_store_bypass_disable=on tsx=off mds=full net.ifnames=0 biosdevname=0"
 GRUB_CMDLINE_LINUX=""
 GRUB_TERMINAL_OUTPUT="gfxterm"
-GRUB_GFXMODE="1920x1080x32,1280x720x32,auto"
+GRUB_GFXMODE="1024x768x32,800x600x32,auto"
 GRUB_GFXPAYLOAD_LINUX="keep"
 EOF
 

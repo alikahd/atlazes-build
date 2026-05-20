@@ -84,7 +84,16 @@ os-prober
 initramfs-tools
 linux-image-amd64
 linux-headers-amd64
+
+# Live system — هذه الحزم الثلاث ضرورية لإقلاع الجلسة الحية
+# live-boot    : يتولى تحميل squashfs وتركيب نظام الملفات الجذر
+# live-config  : يضبط النظام عند الإقلاع (المستخدم، الشبكة، إلخ)
+# live-tools   : أدوات مساعدة للجلسة الحية
 live-boot
+live-boot-initramfs-tools
+live-config
+live-config-systemd
+live-tools
 
 # Microcode (CPU security patches)
 intel-microcode
