@@ -1,76 +1,82 @@
 #!/bin/bash
 # =============================================================================
-# ATLAZES OS - Hook: إصلاح Xorg للتوافق مع VirtualBox وباقي البيئات
+# ATLAZES OS - Hook: إصلاح Xorg لـ VirtualBox VMSVGA
 #
-# المشكلة الجذرية:
-#   - vmwgfx kernel module يُسبب شاشة سوداء مع VirtualBox VMSVGA
-#   - إجبار vmware driver في xorg.conf يكسر الأجهزة الحقيقية
+# التشخيص النهائي:
+#   - startx يعمل (tty2 يظهر ويختفي = Xorg يأخذ السيطرة)
+#   - fbdev يفشل لأن VirtualBox VMSVGA لا يُنشئ /dev/fb0 مع nomodeset
 #
-# الحل الصحيح (موثق في Debian Wiki و VirtualBox forums):
-#   1. blacklist vmwgfx (يمنع الـ kernel module من التحميل)
-#   2. لا نُجبر أي driver في xorg.conf — نترك Xorg يكتشف تلقائياً
-#   3. Xorg مع xserver-xorg-video-vmware يعمل تلقائياً مع VMSVGA
-#   4. على الأجهزة الحقيقية: Xorg يختار الدرايفر المناسب تلقائياً
-#
-# المصادر:
-#   - https://wiki.debian.org/VirtualBox#Black_screen
-#   - https://www.virtualbox.org/ticket/19168
-#   - https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1000000
+# الحل النهائي: vesa driver
+#   - يعمل مع أي GPU بدون kernel module أو framebuffer device
+#   - هو الـ driver الرسمي لـ VirtualBox في وضع VESA
+#   - لا يحتاج vmwgfx ولا /dev/fb0
+#   - يعمل مع nomodeset
 # =============================================================================
 
 set -euo pipefail
 
-echo "[ATLAZES] إصلاح Xorg للتوافق مع جميع البيئات..."
+echo "[ATLAZES] إعداد Xorg مع vesa driver..."
 
-# ── 1. حذف أي xorg.conf قديم يُجبر driver معين ───────────────────────────────
-# إجبار driver معين في xorg.conf يكسر الأجهزة الأخرى
-# Xorg يكتشف الدرايفر الصحيح تلقائياً إذا لم يكن هناك xorg.conf
+# ── إزالة أي xorg.conf قديم ──────────────────────────────────────────────────
 rm -f /etc/X11/xorg.conf 2>/dev/null || true
-rm -f /etc/X11/xorg.conf.d/20-vmsvga.conf 2>/dev/null || true
-rm -f /etc/X11/xorg.conf.d/99-atlazes-fallback.conf 2>/dev/null || true
-
+rm -f /etc/X11/xorg.conf.d/*.conf 2>/dev/null || true
 mkdir -p /etc/X11/xorg.conf.d
 
-# ── 2. إعداد ServerFlags فقط (بدون تحديد driver) ────────────────────────────
-# هذا الإعداد يُحسّن التوافق بدون إجبار driver معين
-cat > /etc/X11/xorg.conf.d/10-serverflags.conf << 'EOF'
-# ATLAZES OS - Xorg Server Flags
-# يُحسّن التوافق مع VirtualBox وباقي البيئات
-# لا يُجبر أي driver — Xorg يكتشف تلقائياً
+# ── إزالة vmwgfx من blacklist إذا كان موجوداً ────────────────────────────────
+BLACKLIST_FILE="/etc/modprobe.d/atlazes-blacklist.conf"
+if [[ -f "$BLACKLIST_FILE" ]]; then
+    sed -i '/blacklist vmwgfx/d' "$BLACKLIST_FILE"
+fi
+
+# ── إعداد xorg.conf مع vesa driver ──────────────────────────────────────────
+# vesa: يعمل مع أي GPU، لا يحتاج kernel module، يعمل مع nomodeset
+cat > /etc/X11/xorg.conf << 'EOF'
+Section "Device"
+    Identifier  "GPU"
+    Driver      "vesa"
+    Option      "ShadowFB" "false"
+EndSection
+
+Section "Monitor"
+    Identifier  "Monitor"
+    Option      "DPMS" "false"
+EndSection
+
+Section "Screen"
+    Identifier  "Screen"
+    Device      "GPU"
+    Monitor     "Monitor"
+    DefaultDepth 24
+    SubSection "Display"
+        Depth    24
+        Modes    "1280x800" "1024x768" "800x600" "640x480"
+    EndSubSection
+EndSection
+
+Section "ServerLayout"
+    Identifier  "Layout"
+    Screen      "Screen"
+EndSection
 
 Section "ServerFlags"
-    # تعطيل DPMS لمنع إطفاء الشاشة في الجلسة الحية
     Option "BlankTime"   "0"
     Option "StandbyTime" "0"
     Option "SuspendTime" "0"
     Option "OffTime"     "0"
+    Option "DontZap"     "false"
 EndSection
 EOF
 
-# ── 3. التحقق من blacklist vmwgfx ────────────────────────────────────────────
-# vmwgfx يُسبب شاشة سوداء مع VMSVGA — يجب أن يكون في blacklist
-BLACKLIST_FILE="/etc/modprobe.d/atlazes-blacklist.conf"
-if ! grep -q "blacklist vmwgfx" "$BLACKLIST_FILE" 2>/dev/null; then
-    echo "blacklist vmwgfx" >> "$BLACKLIST_FILE"
-    echo "[ATLAZES] أُضيف vmwgfx إلى blacklist"
-else
-    echo "[ATLAZES] ✓ vmwgfx مُدرج في blacklist"
+echo "[ATLAZES] ✓ xorg.conf مع vesa driver"
+
+# ── التحقق من تثبيت vesa ─────────────────────────────────────────────────────
+if ! dpkg -l xserver-xorg-video-vesa 2>/dev/null | grep -q "^ii"; then
+    apt-get install -y xserver-xorg-video-vesa 2>/dev/null || true
 fi
 
-# ── 4. التحقق من تثبيت الدرايفرات الضرورية ──────────────────────────────────
-echo "[ATLAZES] الدرايفرات المثبتة:"
-dpkg -l xserver-xorg-video-vmware xserver-xorg-video-fbdev xserver-xorg-video-vesa 2>/dev/null | \
+echo "[ATLAZES] الدرايفرات:"
+dpkg -l xserver-xorg-video-vesa xserver-xorg-video-fbdev \
+        xserver-xorg-video-vmware 2>/dev/null | \
     grep "^ii" | awk '{print "  ✓ " $2}' || true
 
-# التحقق من وجود xserver-xorg-video-vmware (ضروري لـ VirtualBox VMSVGA)
-if ! dpkg -l xserver-xorg-video-vmware 2>/dev/null | grep -q "^ii"; then
-    echo "[ATLAZES] تثبيت xserver-xorg-video-vmware..."
-    apt-get install -y xserver-xorg-video-vmware 2>/dev/null || \
-        echo "[ATLAZES] تحذير: فشل تثبيت vmware driver"
-fi
-
-# ── 5. التحقق من وجود الدرايفرات في مجلد Xorg ───────────────────────────────
-echo "[ATLAZES] الدرايفرات في /usr/lib/xorg/modules/drivers/:"
-ls /usr/lib/xorg/modules/drivers/ 2>/dev/null | head -20 || echo "  المجلد غير موجود"
-
-echo "[ATLAZES] اكتمل إصلاح Xorg."
+echo "[ATLAZES] اكتمل إعداد Xorg."

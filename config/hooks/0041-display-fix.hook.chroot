@@ -44,12 +44,10 @@ EOF
 # ── 3. إعداد .bash_profile لتشغيل startx ────────────────────────────────────
 # .bash_profile يُشغَّل عند login shell (getty autologin يُشغّل login shell)
 BASH_PROFILE_CONTENT='# ATLAZES OS - Auto-start X on tty1
-# يُشغَّل عند login shell على tty1
 if [[ -z "${DISPLAY}" ]] && [[ -z "${WAYLAND_DISPLAY}" ]]; then
-    # التحقق من tty بطريقتين مختلفتين
     _TTY=$(tty 2>/dev/null || echo "")
     if [[ "$_TTY" == "/dev/tty1" ]] || [[ "${XDG_VTNR}" == "1" ]]; then
-        exec startx -- :0 vt1 -nolisten tcp 2>/tmp/startx.log
+        exec /usr/local/bin/atlazes-startx
     fi
 fi
 '
@@ -80,13 +78,29 @@ chmod +x "${USER_HOME}/.xinitrc"
 echo "$XINITRC_CONTENT" > /etc/skel/.xinitrc
 chmod +x /etc/skel/.xinitrc
 
-# ── 5. إنشاء systemd service كـ fallback إضافي ───────────────────────────────
-# إذا فشل .bash_profile، هذا الـ service يُشغّل startx مباشرة
+# ── 5. إنشاء script لتشغيل X ─────────────────────────────────────────────────
+cat > /usr/local/bin/atlazes-startx << 'SCRIPT'
+#!/bin/bash
+# ATLAZES OS - X11 launcher
+# يُشغَّل من systemd service أو .bash_profile
+
+# انتظر حتى يكون النظام جاهزاً
+sleep 1
+
+# تشغيل X مع vesa driver
+exec xinit /home/atlazes/.xinitrc -- \
+    /usr/bin/X :0 vt1 \
+    -nolisten tcp \
+    -config /etc/X11/xorg.conf \
+    2>/tmp/xinit.log
+SCRIPT
+chmod +x /usr/local/bin/atlazes-startx
+
+# ── 6. إنشاء systemd service ─────────────────────────────────────────────────
 cat > /etc/systemd/system/atlazes-startx.service << 'EOF'
 [Unit]
-Description=ATLAZES OS - Start X11 session for atlazes user
+Description=ATLAZES OS - Start X11 session
 After=systemd-user-sessions.service
-After=getty@tty1.service
 ConditionPathExists=!/tmp/.X0-lock
 
 [Service]
@@ -105,7 +119,7 @@ Environment=LOGNAME=atlazes
 Environment=XDG_VTNR=1
 Environment=XDG_SEAT=seat0
 WorkingDirectory=/home/atlazes
-ExecStart=/usr/bin/startx /home/atlazes/.xinitrc -- :0 vt1 -nolisten tcp
+ExecStart=/usr/local/bin/atlazes-startx
 Restart=on-failure
 RestartSec=5
 
