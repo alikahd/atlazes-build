@@ -197,15 +197,9 @@ copy_config() {
 }
 
 # ─── Build the ISO ────────────────────────────────────────────────────────────
-# ─── Build the ISO ────────────────────────────────────────────────────────────
 build_iso() {
     section "Building ISO (this will take 20-60 minutes)"
     cd "${BUILD_DIR}/lb"
-
-    echo ">>> HARD DISABLE linux-image STAGE <<<"
-
-    # 🔴 الحل الجدري: حذف script اللي كيسبب المشكل
-    rm -f /usr/lib/live/build/chroot_linux-image 2>/dev/null || true
 
     echo ">>> FIX WGET (prevent build crash) <<<"
 
@@ -229,9 +223,30 @@ deb http://security.debian.org/debian-security bookworm-security main contrib no
 deb http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
 EOF
 
+    echo ">>> FORCE KERNEL INSTALL <<<"
+
+    mkdir -p config/includes.chroot/usr/local/bin
+
+    cat > config/includes.chroot/usr/local/bin/force-kernel.sh <<'EOF'
+#!/bin/bash
+apt-get update
+apt-get install -y linux-image-amd64 live-boot
+EOF
+
+    chmod +x config/includes.chroot/usr/local/bin/force-kernel.sh
+
+    mkdir -p config/hooks/normal
+
+    cat > config/hooks/normal/0002-force-kernel.hook.chroot <<'EOF'
+#!/bin/bash
+/usr/local/bin/force-kernel.sh
+EOF
+
+    chmod +x config/hooks/normal/0002-force-kernel.hook.chroot
+
     echo ">>> START BUILD <<<"
 
-   lb build --skip chroot_linux-image 2>&1 | tee -a "$LOG_FILE"
+    lb build 2>&1 | tee -a "$LOG_FILE"
 
     local iso_file
     iso_file=$(find "${BUILD_DIR}/lb" -maxdepth 1 -name "*.iso" | head -1)
