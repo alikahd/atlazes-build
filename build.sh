@@ -259,7 +259,10 @@ copy_config() {
 
     # ── قوائم الحزم ───────────────────────────────────────────────────────────
     if [[ -d "${src_config}/package-lists" ]]; then
-        cp -rv "${src_config}/package-lists/"* "${dst_config}/package-lists/" 2>&1 | tee -a "$LOG_FILE"
+        # استخدام rsync بدلاً من cp لتجنب "same file" error
+        rsync -av --update \
+            "${src_config}/package-lists/" \
+            "${dst_config}/package-lists/" 2>&1 | tee -a "$LOG_FILE"
         log "تم نسخ قوائم الحزم:"
         ls -la "${dst_config}/package-lists/" | tee -a "$LOG_FILE"
     else
@@ -274,7 +277,9 @@ copy_config() {
 
     # ── الـ hooks ─────────────────────────────────────────────────────────────
     if [[ -d "${src_config}/hooks" ]]; then
-        cp -rv "${src_config}/hooks/"* "${dst_config}/hooks/" 2>&1 | tee -a "$LOG_FILE"
+        rsync -av --update \
+            "${src_config}/hooks/" \
+            "${dst_config}/hooks/" 2>&1 | tee -a "$LOG_FILE"
         find "${dst_config}/hooks/" -name "*.hook.chroot" -exec chmod +x {} \;
         find "${dst_config}/hooks/" -name "*.hook.binary" -exec chmod +x {} \;
         log "تم نسخ الـ hooks:"
@@ -283,12 +288,16 @@ copy_config() {
 
     # ── الملفات المضمنة ───────────────────────────────────────────────────────
     if [[ -d "${src_config}/includes.chroot" ]]; then
-        cp -rv "${src_config}/includes.chroot/"* "${dst_config}/includes.chroot/" 2>&1 | tee -a "$LOG_FILE"
+        rsync -av --update \
+            "${src_config}/includes.chroot/" \
+            "${dst_config}/includes.chroot/" 2>&1 | tee -a "$LOG_FILE"
     fi
 
     # ── preseed ───────────────────────────────────────────────────────────────
     if [[ -d "${src_config}/preseed" ]]; then
-        cp -rv "${src_config}/preseed/"* "${dst_config}/preseed/" 2>&1 | tee -a "$LOG_FILE"
+        rsync -av --update \
+            "${src_config}/preseed/" \
+            "${dst_config}/preseed/" 2>&1 | tee -a "$LOG_FILE"
     fi
 
     # ── علامة الإصدار ─────────────────────────────────────────────────────────
