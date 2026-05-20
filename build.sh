@@ -198,7 +198,7 @@ init_livebuild() {
         --mirror-chroot "$MIRROR"
         --mirror-binary "$MIRROR"
         --archive-areas "main contrib non-free non-free-firmware"
-        --apt-recommends false
+        --apt-recommends true
         --apt-secure true
         --binary-images iso-hybrid
         --memtest none
@@ -211,8 +211,8 @@ init_livebuild() {
         --backports false
         --win32-loader false
         --zsync false
-        --bootappend-live "boot=live components nomodeset vga=791 net.ifnames=0 biosdevname=0 apparmor=1 security=apparmor noeject noprompt"
-        --bootappend-live-failsafe "boot=live components nomodeset vga=788 noeject noprompt net.ifnames=0 biosdevname=0"
+        --bootappend-live "boot=live components nomodeset vga=791 net.ifnames=0 biosdevname=0 apparmor=1 security=apparmor noeject noprompt username=atlazes"
+        --bootappend-live-failsafe "boot=live components nomodeset vga=788 noeject noprompt net.ifnames=0 biosdevname=0 username=atlazes"
     )
 
     # إضافة خيارات النسخ الحديثة فقط إذا كانت مدعومة
@@ -257,35 +257,45 @@ copy_config() {
 
     [[ -d "$src_config" ]] || error "مجلد الإعداد غير موجود: $src_config"
 
-    # قوائم الحزم
-    [[ -d "${src_config}/package-lists" ]] && \
-        cp -r "${src_config}/package-lists/"* "${dst_config}/package-lists/" 2>/dev/null || true
-
-    # حذف قائمة dev للإصدارات الأخرى
-    [[ "$EDITION" != "dev" ]] && \
-        rm -f "${dst_config}/package-lists/05-development.list.chroot" && \
-        log "تم استبعاد قائمة dev"
-
-    # الـ hooks
-    if [[ -d "${src_config}/hooks" ]]; then
-        cp -r "${src_config}/hooks/"* "${dst_config}/hooks/" 2>/dev/null || true
-        find "${dst_config}/hooks/" -name "*.hook.chroot" -exec chmod +x {} \; 2>/dev/null || true
-        find "${dst_config}/hooks/" -name "*.hook.binary" -exec chmod +x {} \; 2>/dev/null || true
+    # ── قوائم الحزم ───────────────────────────────────────────────────────────
+    if [[ -d "${src_config}/package-lists" ]]; then
+        cp -rv "${src_config}/package-lists/"* "${dst_config}/package-lists/" 2>&1 | tee -a "$LOG_FILE"
+        log "تم نسخ قوائم الحزم:"
+        ls -la "${dst_config}/package-lists/" | tee -a "$LOG_FILE"
+    else
+        error "مجلد package-lists غير موجود: ${src_config}/package-lists"
     fi
 
-    # الملفات المضمنة في النظام الحي
-    [[ -d "${src_config}/includes.chroot" ]] && \
-        cp -r "${src_config}/includes.chroot/"* "${dst_config}/includes.chroot/" 2>/dev/null || true
+    # حذف قائمة dev للإصدارات الأخرى
+    if [[ "$EDITION" != "dev" ]]; then
+        rm -f "${dst_config}/package-lists/05-development.list.chroot"
+        log "تم استبعاد قائمة dev"
+    fi
 
-    # preseed
-    [[ -d "${src_config}/preseed" ]] && \
-        cp -r "${src_config}/preseed/"* "${dst_config}/preseed/" 2>/dev/null || true
+    # ── الـ hooks ─────────────────────────────────────────────────────────────
+    if [[ -d "${src_config}/hooks" ]]; then
+        cp -rv "${src_config}/hooks/"* "${dst_config}/hooks/" 2>&1 | tee -a "$LOG_FILE"
+        find "${dst_config}/hooks/" -name "*.hook.chroot" -exec chmod +x {} \;
+        find "${dst_config}/hooks/" -name "*.hook.binary" -exec chmod +x {} \;
+        log "تم نسخ الـ hooks:"
+        ls -la "${dst_config}/hooks/" | tee -a "$LOG_FILE"
+    fi
 
-    # علامة الإصدار
+    # ── الملفات المضمنة ───────────────────────────────────────────────────────
+    if [[ -d "${src_config}/includes.chroot" ]]; then
+        cp -rv "${src_config}/includes.chroot/"* "${dst_config}/includes.chroot/" 2>&1 | tee -a "$LOG_FILE"
+    fi
+
+    # ── preseed ───────────────────────────────────────────────────────────────
+    if [[ -d "${src_config}/preseed" ]]; then
+        cp -rv "${src_config}/preseed/"* "${dst_config}/preseed/" 2>&1 | tee -a "$LOG_FILE"
+    fi
+
+    # ── علامة الإصدار ─────────────────────────────────────────────────────────
     mkdir -p "${dst_config}/includes.chroot/etc"
     echo "ATLAZES_EDITION=${EDITION}" > "${dst_config}/includes.chroot/etc/atlazes-edition"
 
-    log "تم نسخ ملفات الإعداد."
+    log "اكتمل نسخ ملفات الإعداد."
 }
 
 # ─── بناء الـ ISO ─────────────────────────────────────────────────────────────

@@ -27,12 +27,39 @@ update-locale LANG=en_US.UTF-8
 ln -sf /usr/share/zoneinfo/UTC /etc/localtime
 echo "UTC" > /etc/timezone
 
+# ─── Configure live-config to use 'atlazes' as live user ─────────────────────
+# live-config ينشئ مستخدم 'user' افتراضياً — نُخبره باستخدام 'atlazes' بدلاً منه
+mkdir -p /etc/live/config.conf.d
+cat > /etc/live/config.conf.d/atlazes-user.conf << 'EOF'
+# ATLAZES OS - Live user configuration
+LIVE_USERNAME="atlazes"
+LIVE_USER_FULLNAME="ATLAZES OS Live User"
+LIVE_USER_DEFAULT_GROUPS="sudo audio video plugdev netdev bluetooth cdrom floppy dip"
+EOF
+
+# إعداد live-config الرئيسي
+mkdir -p /etc/live
+cat > /etc/live/config.conf << 'EOF'
+# ATLAZES OS - live-config main configuration
+LIVE_USERNAME="atlazes"
+LIVE_USER_FULLNAME="ATLAZES OS Live User"
+LIVE_HOSTNAME="atlazes"
+LIVE_UTC="yes"
+LIVE_LOCALES="en_US.UTF-8"
+LIVE_KEYBOARD_LAYOUTS="us"
+EOF
+
 # ─── Create live user ─────────────────────────────────────────────────────────
+# إنشاء المستخدم يدوياً كـ backup إذا فشل live-config
 if ! id "atlazes" &>/dev/null; then
     useradd -m -s /bin/bash -G sudo,audio,video,plugdev,netdev,bluetooth,cdrom,floppy,dip atlazes
     echo "atlazes:atlazes" | chpasswd
     echo "root:atlazes" | chpasswd
 fi
+
+# التأكد من كلمة المرور حتى لو كان المستخدم موجوداً
+echo "atlazes:atlazes" | chpasswd
+echo "root:atlazes" | chpasswd
 
 # ─── Autologin for live session ───────────────────────────────────────────────
 # ملاحظة: إعداد LightDM الكامل يتم في hook 0041-display-fix
