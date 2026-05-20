@@ -35,24 +35,17 @@ jobs:
         run: |
           echo "=== Disk before ==="
           df -h
-
           sudo apt-get remove -y \
             '^dotnet-.*' '^llvm-.*' '^php.*' \
             azure-cli google-cloud-sdk google-chrome-stable \
             firefox powershell mono-devel \
             2>/dev/null || true
-
           sudo apt-get autoremove -y 2>/dev/null || true
           sudo apt-get clean
-
           sudo rm -rf \
-            /usr/share/dotnet \
-            /usr/local/lib/android \
-            /opt/ghc \
-            /opt/hostedtoolcache/CodeQL \
-            /usr/local/share/boost \
-            2>/dev/null || true
-
+            /usr/share/dotnet /usr/local/lib/android \
+            /opt/ghc /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost 2>/dev/null || true
           echo "=== Disk after ==="
           df -h
 
@@ -61,37 +54,78 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y \
-            debootstrap \
-            squashfs-tools \
-            xorriso \
-            isolinux \
-            syslinux-efi \
-            grub-pc-bin \
-            grub-efi-amd64-bin \
-            mtools \
-            dosfstools \
-            curl \
-            wget \
-            rsync \
-            librsvg2-bin \
-            ca-certificates \
-            debian-archive-keyring \
-            dpkg-dev
+            debootstrap squashfs-tools xorriso \
+            isolinux syslinux-efi \
+            grub-pc-bin grub-efi-amd64-bin \
+            mtools dosfstools \
+            curl wget rsync \
+            librsvg2-bin ca-certificates \
+            gnupg2 dpkg-dev
 
-      # ── 4. تثبيت live-build الحديث من Debian ─────────────────────────────────
-      # نسخة Ubuntu 22.04 هي 20190311 — قديمة جداً
-      # نثبت النسخة الحديثة من Debian bookworm مباشرة
+      # ── 4. إصلاح مفاتيح Debian GPG ───────────────────────────────────────────
+      # Ubuntu 22.04 لا تحتوي على مفتاح Debian bookworm (F8D2585B8783D481)
+      # هذا يسبب فشل debootstrap بخطأ "Release signed by unknown key"
+      - name: Fix Debian GPG keyring
+        run: |
+          echo "=== Installing debian-archive-keyring from Debian ==="
+
+          # تحميل حزمة debian-archive-keyring مباشرة من Debian
+          KEYRING_URL="http://deb.debian.org/debian/pool/main/d/debian-archive-keyring"
+
+          # البحث عن أحدث نسخة
+          KEYRING_DEB=$(curl -fsSL "${KEYRING_URL}/" 2>/dev/null | \
+            grep -oP 'debian-archive-keyring_[0-9.]+_all\.deb' | \
+            sort -V | tail -1 || echo "")
+
+          if [[ -n "$KEYRING_DEB" ]]; then
+            echo "Downloading: ${KEYRING_DEB}"
+            curl -fsSL "${KEYRING_URL}/${KEYRING_DEB}" -o "/tmp/${KEYRING_DEB}"
+            sudo dpkg -i "/tmp/${KEYRING_DEB}"
+            rm -f "/tmp/${KEYRING_DEB}"
+            echo "debian-archive-keyring installed successfully"
+          else
+            echo "Package listing failed, downloading keys directly..."
+
+            # تحميل مفاتيح Debian مباشرة من ftp-master.debian.org
+            sudo mkdir -p /usr/share/keyrings
+
+            for KEY_URL in \
+              "https://ftp-master.debian.org/keys/release-12.asc" \
+              "https://ftp-master.debian.org/keys/archive-key-12.asc" \
+              "https://ftp-master.debian.org/keys/archive-key-12-security.asc"; do
+              echo "Fetching: ${KEY_URL}"
+              curl -fsSL "${KEY_URL}" 2>/dev/null | \
+                sudo gpg --dearmor \
+                >> /usr/share/keyrings/debian-archive-keyring.gpg || true
+            done
+          fi
+
+          # إضافة المفتاح المفقود مباشرة عبر keyserver
+          echo "Adding missing key F8D2585B8783D481..."
+          sudo gpg --no-default-keyring \
+            --keyring /usr/share/keyrings/debian-archive-keyring.gpg \
+            --keyserver hkps://keyserver.ubuntu.com \
+            --recv-keys F8D2585B8783D481 2>/dev/null || \
+          sudo gpg --no-default-keyring \
+            --keyring /usr/share/keyrings/debian-archive-keyring.gpg \
+            --keyserver hkps://keys.openpgp.org \
+            --recv-keys F8D2585B8783D481 2>/dev/null || true
+
+          echo "=== Keyring contents ==="
+          gpg --no-default-keyring \
+            --keyring /usr/share/keyrings/debian-archive-keyring.gpg \
+            --list-keys 2>/dev/null | grep -E "^pub|uid" | head -20 || true
+
+      # ── 5. تثبيت live-build الحديث من Debian ─────────────────────────────────
+      # نسخة Ubuntu 22.04 هي 20190311 — لا تدعم --bootloaders و --uefi-secure-boot
       - name: Install modern live-build from Debian
         run: |
-          echo "=== Current live-build version ==="
-          apt-cache show live-build 2>/dev/null | grep Version || echo "not installed"
+          echo "=== Current live-build ==="
+          dpkg -l live-build 2>/dev/null | grep "^ii" || echo "not installed"
 
-          # تحميل live-build من Debian bookworm
-          # النسخة 20230131 تدعم --bootloaders و --uefi-secure-boot و --updates
           DEBIAN_LB_URL="http://deb.debian.org/debian/pool/main/l/live-build"
 
-          # البحث عن أحدث نسخة متاحة
-          echo "Fetching live-build package list..."
+          # البحث عن أحدث نسخة
           LB_DEB=$(curl -fsSL "${DEBIAN_LB_URL}/" 2>/dev/null | \
             grep -oP 'live-build_[0-9]+_all\.deb' | \
             sort -V | tail -1 || echo "")
@@ -102,8 +136,7 @@ jobs:
             sudo dpkg -i "/tmp/${LB_DEB}" || sudo apt-get install -f -y
             rm -f "/tmp/${LB_DEB}"
           else
-            echo "Could not find .deb file, trying direct version..."
-            # محاولة نسخة محددة
+            # محاولة نسخ محددة
             for VER in "20230131" "20221020" "20210208"; do
               DEB_FILE="live-build_${VER}_all.deb"
               if curl -fsSL --max-time 30 \
@@ -117,26 +150,26 @@ jobs:
             done
           fi
 
-          echo "=== Installed live-build version ==="
-          lb --version || dpkg -l live-build | grep "^ii"
+          echo "=== Installed live-build ==="
+          lb --version
 
-      # ── 5. التحقق من البيئة ───────────────────────────────────────────────────
+      # ── 6. التحقق من البيئة ───────────────────────────────────────────────────
       - name: Verify build environment
         run: |
           echo "=== live-build version ==="
           lb --version
 
-          echo "=== lb config supported options (check for --bootloaders) ==="
+          echo "=== Supported lb config options ==="
           lb config --help 2>&1 | grep -E "bootloaders|uefi|updates" || \
-            echo "WARNING: Some options may not be supported"
+            echo "Some options may not be supported in this version"
 
           echo "=== debootstrap version ==="
           debootstrap --version
 
-          echo "=== Available disk space ==="
+          echo "=== Disk space ==="
           df -h
 
-      # ── 6. بناء الـ ISO ───────────────────────────────────────────────────────
+      # ── 7. بناء الـ ISO ───────────────────────────────────────────────────────
       - name: Build ISO
         env:
           ATLAZES_EDITION: ${{ github.event.inputs.edition || 'core' }}
@@ -145,20 +178,18 @@ jobs:
           chmod +x build.sh
           sudo -E ./build.sh build --edition="${ATLAZES_EDITION}"
 
-      # ── 7. عرض نتائج البناء ──────────────────────────────────────────────────
+      # ── 8. عرض نتائج البناء ──────────────────────────────────────────────────
       - name: Show build results
         if: always()
         run: |
           echo "=== Output files ==="
           ls -lh output/ 2>/dev/null || echo "No output directory"
-
           echo "=== Disk usage ==="
           df -h
-
           echo "=== Last 100 lines of build log ==="
           tail -100 build/build-*.log 2>/dev/null || echo "No build log"
 
-      # ── 8. رفع الـ ISO كـ artifact ────────────────────────────────────────────
+      # ── 9. رفع الـ ISO كـ artifact ────────────────────────────────────────────
       - name: Upload ISO artifact
         if: success()
         uses: actions/upload-artifact@v4
@@ -170,7 +201,7 @@ jobs:
             output/*.md5
           retention-days: 7
 
-      # ── 9. رفع سجل البناء عند الفشل ──────────────────────────────────────────
+      # ── 10. رفع سجل البناء عند الفشل ─────────────────────────────────────────
       - name: Upload build log on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -179,7 +210,7 @@ jobs:
           path: build/build-*.log
           retention-days: 3
 
-      # ── 10. إنشاء GitHub Release عند الـ tag ─────────────────────────────────
+      # ── 11. إنشاء GitHub Release عند الـ tag ──────────────────────────────────
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') && success()
         uses: softprops/action-gh-release@v1
