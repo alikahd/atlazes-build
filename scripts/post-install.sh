@@ -238,7 +238,6 @@ apt-get remove -y --purge \
     live-config-systemd \
     live-tools \
     calamares \
-    calamares-settings-debian \
     2>/dev/null || true
 apt-get autoremove -y
 log "Live packages removed."

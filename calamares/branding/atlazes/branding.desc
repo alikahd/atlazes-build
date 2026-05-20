@@ -21,10 +21,12 @@ strings:
     donateUrl:           "https://atlazes.os/donate"
 
 # Images (relative to this directory)
+# ملاحظة: هذه الملفات تُنشأ أثناء البناء في hook 0040-branding
+# إذا لم تكن موجودة، Calamares يستخدم الافتراضي
 images:
     productLogo:         "logo.png"
-    productIcon:         "icon.png"
-    productWelcome:      "welcome.png"
+    productIcon:         "logo.png"
+    productWelcome:      "logo.png"
 
 # Slideshow during installation
 slideshow:               "show.qml"

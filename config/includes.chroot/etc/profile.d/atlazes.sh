@@ -33,10 +33,9 @@ alias grep='grep --color=auto'
 alias fgrep='fgrep --color=auto'
 alias egrep='egrep --color=auto'
 
-# ATLAZES tools
-alias atlazes='atlazes-tools'
-alias security-status='atlazes-tools status'
-alias privacy-clean='atlazes-tools clean'
+# ATLAZES tools — الأمر الصحيح هو atlazes وليس atlazes-tools
+alias security-status='atlazes status'
+alias privacy-clean='atlazes clean'
 
 # Safety aliases
 alias rm='rm -i'

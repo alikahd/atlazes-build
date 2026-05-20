@@ -211,8 +211,8 @@ init_livebuild() {
         --backports false
         --win32-loader false
         --zsync false
-        --bootappend-live "boot=live components quiet splash net.ifnames=0 biosdevname=0 apparmor=1 security=apparmor noeject"
-        --bootappend-live-failsafe "boot=live components nomodeset noeject net.ifnames=0 biosdevname=0"
+        --bootappend-live "boot=live components nomodeset vga=791 net.ifnames=0 biosdevname=0 apparmor=1 security=apparmor noeject noprompt"
+        --bootappend-live-failsafe "boot=live components nomodeset vga=788 noeject noprompt net.ifnames=0 biosdevname=0"
     )
 
     # إضافة خيارات النسخ الحديثة فقط إذا كانت مدعومة

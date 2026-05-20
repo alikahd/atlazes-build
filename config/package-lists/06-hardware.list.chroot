@@ -28,10 +28,9 @@ xserver-xorg-video-intel
 xserver-xorg-video-vesa
 xserver-xorg-video-fbdev
 mesa-utils
-mesa-vulkan-drivers
-vulkan-tools
 libgl1-mesa-dri
 libglx-mesa0
+# mesa-vulkan-drivers و vulkan-tools محذوفان — يُضيفان حجماً كبيراً بدون فائدة في الجلسة الحية
 
 # ── Input devices ─────────────────────────────────────────────────────────────
 xserver-xorg-input-libinput

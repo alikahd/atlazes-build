@@ -35,6 +35,8 @@ if ! id "atlazes" &>/dev/null; then
 fi
 
 # ─── Autologin for live session ───────────────────────────────────────────────
+# ملاحظة: إعداد LightDM الكامل يتم في hook 0041-display-fix
+# هنا نضع فقط إعداداً بسيطاً كـ fallback
 mkdir -p /etc/lightdm/lightdm.conf.d
 cat > /etc/lightdm/lightdm.conf.d/10-autologin.conf << 'EOF'
 [Seat:*]

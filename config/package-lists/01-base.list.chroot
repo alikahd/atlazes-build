@@ -83,7 +83,7 @@ grub2-common
 os-prober
 initramfs-tools
 linux-image-amd64
-linux-headers-amd64
+# linux-headers-amd64 محذوف — يُضيف 400MB للـ ISO بدون فائدة في الجلسة الحية
 
 # Live system — هذه الحزم الثلاث ضرورية لإقلاع الجلسة الحية
 # live-boot    : يتولى تحميل squashfs وتركيب نظام الملفات الجذر

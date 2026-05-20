@@ -38,12 +38,18 @@ xorg
 xserver-xorg
 xserver-xorg-input-all
 xserver-xorg-video-all
+xserver-xorg-video-vesa
+xserver-xorg-video-fbdev
 x11-utils
 x11-xserver-utils
 xinit
 xdg-utils
 xdg-user-dirs
 xdg-user-dirs-gtk
+
+# ملاحظة: virtualbox-guest-x11 ليس في مستودعات Debian الرسمية
+# يُثبَّت تلقائياً عبر open-vm-tools في قائمة 01-base
+# VirtualBox يعمل مع xserver-xorg-video-vesa و xserver-xorg-video-fbdev
 
 # GTK themes and icons
 arc-theme
@@ -53,8 +59,9 @@ gtk2-engines-pixbuf
 gnome-themes-extra
 adwaita-icon-theme
 
-# Compositor
-picom
+# Compositor — معطّل افتراضياً لأنه يسبب شاشة سوداء في VirtualBox
+# يمكن تفعيله يدوياً: picom --daemon
+# picom
 
 # Fonts
 fonts-ubuntu
