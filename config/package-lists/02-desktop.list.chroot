@@ -40,6 +40,9 @@ xserver-xorg-input-all
 xserver-xorg-video-all
 xserver-xorg-video-vesa
 xserver-xorg-video-fbdev
+# xserver-xorg-video-vmware: درايفر VMSVGA الصحيح لـ VirtualBox
+# يحل مشكلة الشاشة السوداء مع VMSVGA controller
+xserver-xorg-video-vmware
 x11-utils
 x11-xserver-utils
 xinit

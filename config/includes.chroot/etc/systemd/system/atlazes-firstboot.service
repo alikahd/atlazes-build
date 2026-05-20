@@ -1,0 +1,12 @@
+[Unit]
+Description=ATLAZES OS First Boot Setup
+After=network.target
+ConditionPathExists=!/var/lib/atlazes/.firstboot-done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/atlazes-firstboot
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

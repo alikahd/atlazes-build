@@ -119,12 +119,16 @@ GRUB_GFXPAYLOAD_LINUX="keep"
 EOF
 
 # ─── Firewall (UFW) ───────────────────────────────────────────────────────────
-ufw --force reset
-ufw default deny incoming
-ufw default allow outgoing
-ufw default deny forward
-ufw logging on
-ufw --force enable
+# تهيئة UFW بدون تفعيله داخل الـ chroot
+# UFW يُفعَّل تلقائياً عند الإقلاع عبر systemd لأننا فعّلنا الخدمة في 0010
+# تشغيل ufw --force enable داخل الـ chroot يُعطّل D-Bus ويمنع LightDM من الإقلاع
+ufw --force reset 2>/dev/null || true
+ufw default deny incoming  2>/dev/null || true
+ufw default allow outgoing 2>/dev/null || true
+ufw default deny forward   2>/dev/null || true
+ufw logging on             2>/dev/null || true
+# ملاحظة: لا نُشغّل "ufw --force enable" هنا
+# UFW يُفعَّل عند أول إقلاع عبر: systemctl enable ufw (في hook 0010)
 
 # ─── AppArmor: selective enforce ─────────────────────────────────────────────
 if command -v aa-enforce &>/dev/null && command -v aa-complain &>/dev/null; then

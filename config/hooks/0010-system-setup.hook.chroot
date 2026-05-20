@@ -80,6 +80,10 @@ chmod 644 /var/lib/atlazes/current-mode
 # ─── Make CLI tools executable ────────────────────────────────────────────────
 chmod +x /usr/local/bin/atlazes       2>/dev/null || true
 chmod +x /usr/local/bin/atlazes-tools 2>/dev/null || true
+chmod +x /usr/local/bin/atlazes-firstboot 2>/dev/null || true
+
+# ─── تفعيل first boot service ────────────────────────────────────────────────
+systemctl enable atlazes-firstboot.service 2>/dev/null || true
 
 # ─── Add live user to proc group ─────────────────────────────────────────────
 groupadd -f proc 2>/dev/null || true
