@@ -1,9 +1,17 @@
 #!/bin/bash
 # =============================================================================
-# ATLAZES OS - Hook: إصلاح الشاشة السوداء - النهج الجذري
-# بدلاً من إصلاح LightDM، نجعل النظام يُقلع إلى terminal أولاً
-# ثم يُشغّل startx تلقائياً من .bash_profile
-# هذا يتجاوز مشكلة LightDM/Xorg كلياً
+# ATLAZES OS - Hook: إصلاح الشاشة السوداء
+#
+# المشكلة الجذرية المؤكدة من الصورة:
+#   - النظام يُقلع بنجاح ويُسجّل دخول atlazes تلقائياً
+#   - LightDM يفشل في تشغيل Xorg مع VirtualBox VMSVGA
+#   - .bash_profile لا يُشغَّل لأن autologin عبر getty لا يُشغّل login shell
+#
+# الحل الجذري:
+#   1. تعطيل LightDM كلياً
+#   2. إعداد getty autologin على tty1
+#   3. إنشاء systemd service يُشغّل startx مباشرة بعد login
+#   4. .bash_profile + .profile كـ fallback مزدوج
 # =============================================================================
 
 set -euo pipefail
@@ -13,54 +21,51 @@ echo "[ATLAZES] إعداد نظام العرض..."
 LIVE_USER="atlazes"
 USER_HOME="/home/${LIVE_USER}"
 
-# ── 1. إعداد LightDM بشكل بسيط جداً ─────────────────────────────────────────
-# نضع الإعداد في lightdm.conf.d/ لتجنب التعارض مع live-config
-# live-config يُنشئ /etc/lightdm/lightdm.conf.d/live-config.conf
-# إعدادنا يُكمّل إعداد live-config
-mkdir -p /etc/lightdm/lightdm.conf.d
+# ── 1. تعطيل LightDM — هو سبب المشكلة ───────────────────────────────────────
+# LightDM يفشل مع VirtualBox VMSVGA ويُسبب الشاشة السوداء
+# نُعطّله ونستخدم startx مباشرة
+systemctl disable lightdm 2>/dev/null || true
 
-cat > /etc/lightdm/lightdm.conf.d/10-atlazes.conf << 'EOF'
-[LightDM]
-logind-check-graphical=false
+# منع live-config من إعادة تفعيل LightDM
+# live-config يُفعّل LightDM تلقائياً — نُنشئ mask لمنعه
+systemctl mask lightdm 2>/dev/null || true
 
-[Seat:*]
-autologin-user=atlazes
-autologin-user-timeout=0
-user-session=xfce
-greeter-session=lightdm-gtk-greeter
+# ── 2. إعداد getty autologin على tty1 ────────────────────────────────────────
+# getty autologin يُسجّل دخول atlazes تلقائياً على tty1
+# ثم .bash_profile يُشغّل startx
+mkdir -p /etc/systemd/system/getty@tty1.service.d
+cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << 'EOF'
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin atlazes --noclear %I $TERM
+Type=idle
 EOF
 
-# greeter بسيط جداً
-cat > /etc/lightdm/lightdm-gtk-greeter.conf << 'EOF'
-[greeter]
-theme-name=Adwaita
-icon-theme-name=Adwaita
-font-name=Sans 10
-hide-user-image=true
-EOF
-
-# ── 2. إعداد startx كـ fallback تلقائي ───────────────────────────────────────
-# إذا فشل LightDM، يُقلع النظام إلى tty1
-# ويُشغّل startx تلقائياً من .bash_profile
-# نضعه في /etc/skel/ أيضاً لأن live-config قد يُنشئ المستخدم بعد الـ hooks
-BASH_PROFILE_CONTENT='# ATLAZES OS - Auto-start X if on tty1 and no display
-if [[ -z "${DISPLAY}" ]] && [[ "$(tty)" == "/dev/tty1" ]]; then
-    echo "Starting XFCE4 via startx..."
-    exec startx -- -nolisten tcp 2>/tmp/startx.log
+# ── 3. إعداد .bash_profile لتشغيل startx ────────────────────────────────────
+# .bash_profile يُشغَّل عند login shell (getty autologin يُشغّل login shell)
+BASH_PROFILE_CONTENT='# ATLAZES OS - Auto-start X on tty1
+# يُشغَّل عند login shell على tty1
+if [[ -z "${DISPLAY}" ]] && [[ -z "${WAYLAND_DISPLAY}" ]]; then
+    # التحقق من tty بطريقتين مختلفتين
+    _TTY=$(tty 2>/dev/null || echo "")
+    if [[ "$_TTY" == "/dev/tty1" ]] || [[ "${XDG_VTNR}" == "1" ]]; then
+        exec startx -- :0 vt1 -nolisten tcp 2>/tmp/startx.log
+    fi
 fi
 '
 
 echo "$BASH_PROFILE_CONTENT" > "${USER_HOME}/.bash_profile"
-
-# نسخ إلى /etc/skel/ لأن live-config قد يُنشئ المستخدم بعد الـ hooks
-mkdir -p /etc/skel
 echo "$BASH_PROFILE_CONTENT" > /etc/skel/.bash_profile
 
-# ── 3. إعداد .xinitrc لتشغيل XFCE4 ──────────────────────────────────────────
-XINITRC_CONTENT='#!/bin/bash
-# ATLAZES OS - X11 session startup
+# .profile كـ fallback (بعض الـ shells تقرأ .profile بدلاً من .bash_profile)
+echo "$BASH_PROFILE_CONTENT" > "${USER_HOME}/.profile"
+echo "$BASH_PROFILE_CONTENT" > /etc/skel/.profile
 
-# تعطيل screen saver
+# ── 4. إعداد .xinitrc لتشغيل XFCE4 ──────────────────────────────────────────
+XINITRC_CONTENT='#!/bin/bash
+# ATLAZES OS - X11 session
+
+# تعطيل screen saver و DPMS
 xset s off 2>/dev/null || true
 xset -dpms 2>/dev/null || true
 xset s noblank 2>/dev/null || true
@@ -72,27 +77,64 @@ exec startxfce4
 
 echo "$XINITRC_CONTENT" > "${USER_HOME}/.xinitrc"
 chmod +x "${USER_HOME}/.xinitrc"
-
-# نسخ إلى /etc/skel/ أيضاً
 echo "$XINITRC_CONTENT" > /etc/skel/.xinitrc
 chmod +x /etc/skel/.xinitrc
 
-# ── 4. تعطيل picom ────────────────────────────────────────────────────────────
+# ── 5. إنشاء systemd service كـ fallback إضافي ───────────────────────────────
+# إذا فشل .bash_profile، هذا الـ service يُشغّل startx مباشرة
+cat > /etc/systemd/system/atlazes-startx.service << 'EOF'
+[Unit]
+Description=ATLAZES OS - Start X11 session for atlazes user
+After=systemd-user-sessions.service
+After=getty@tty1.service
+ConditionPathExists=!/tmp/.X0-lock
+
+[Service]
+Type=simple
+User=atlazes
+Group=atlazes
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+Environment=HOME=/home/atlazes
+Environment=USER=atlazes
+Environment=LOGNAME=atlazes
+Environment=XDG_VTNR=1
+Environment=XDG_SEAT=seat0
+WorkingDirectory=/home/atlazes
+ExecStart=/usr/bin/startx /home/atlazes/.xinitrc -- :0 vt1 -nolisten tcp
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl enable atlazes-startx.service 2>/dev/null || true
+
+# ── 6. تعطيل picom (يُسبب مشاكل في VMs) ─────────────────────────────────────
 mkdir -p /etc/xdg/autostart
 cat > /etc/xdg/autostart/picom.desktop << 'EOF'
 [Desktop Entry]
 Hidden=true
 EOF
 
-# ── 5. تعطيل compositor في XFCE4 ─────────────────────────────────────────────
+# ── 7. إعداد XFCE4 ───────────────────────────────────────────────────────────
 mkdir -p "${USER_HOME}/.config/xfce4/xfconf/xfce-perchannel-xml"
 
-if [[ -f "${USER_HOME}/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml" ]]; then
-    sed -i 's/name="use_compositing" type="bool" value="true"/name="use_compositing" type="bool" value="false"/' \
-        "${USER_HOME}/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml" 2>/dev/null || true
-fi
+# تعطيل compositor (يُسبب مشاكل في VMs)
+cat > "${USER_HOME}/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml" << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfwm4" version="1.0">
+  <property name="general" type="empty">
+    <property name="use_compositing" type="bool" value="false"/>
+  </property>
+</channel>
+EOF
 
-# ── 6. إعداد XFCE4 session ───────────────────────────────────────────────────
 cat > "${USER_HOME}/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-session.xml" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <channel name="xfce4-session" version="1.0">
@@ -105,14 +147,21 @@ cat > "${USER_HOME}/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-session.xml" 
 </channel>
 EOF
 
-# ── 7. تصحيح الملكية ─────────────────────────────────────────────────────────
+# نسخ إعدادات XFCE4 إلى /etc/skel/
+mkdir -p /etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml
+cp "${USER_HOME}/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml" \
+   /etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/ 2>/dev/null || true
+cp "${USER_HOME}/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-session.xml" \
+   /etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/ 2>/dev/null || true
+
+# ── 8. تصحيح الملكية ─────────────────────────────────────────────────────────
 chown -R "${LIVE_USER}:${LIVE_USER}" \
     "${USER_HOME}/.bash_profile" \
+    "${USER_HOME}/.profile" \
     "${USER_HOME}/.xinitrc" \
     "${USER_HOME}/.config" 2>/dev/null || true
 
-# التأكد من صلاحيات /etc/skel
-chmod 644 /etc/skel/.bash_profile 2>/dev/null || true
+chmod 644 /etc/skel/.bash_profile /etc/skel/.profile 2>/dev/null || true
 chmod 755 /etc/skel/.xinitrc 2>/dev/null || true
 
 echo "[ATLAZES] اكتمل إعداد نظام العرض."

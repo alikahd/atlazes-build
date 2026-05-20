@@ -48,19 +48,13 @@ echo "atlazes:atlazes" | chpasswd
 echo "root:atlazes" | chpasswd
 
 # ─── Autologin for live session ───────────────────────────────────────────────
-# ملاحظة: إعداد LightDM الكامل يتم في hook 0041-display-fix
-# هنا نضع فقط إعداداً بسيطاً كـ fallback في lightdm.conf.d/
+# autologin يتم عبر getty@tty1 (مُعدَّل في hook 0041)
+# LightDM مُعطَّل — نستخدم startx مباشرة
 mkdir -p /etc/lightdm/lightdm.conf.d
-cat > /etc/lightdm/lightdm.conf.d/10-autologin.conf << 'EOF'
-[Seat:*]
-autologin-user=atlazes
-autologin-user-timeout=0
-user-session=xfce
-EOF
 
 # ─── Enable services ──────────────────────────────────────────────────────────
 systemctl enable NetworkManager 2>/dev/null || true
-systemctl enable lightdm        2>/dev/null || true
+# lightdm: لا نُفعّله هنا — hook 0041 يُعطّله ويستخدم startx مباشرة
 systemctl enable bluetooth      2>/dev/null || true
 systemctl enable cups           2>/dev/null || true
 systemctl enable apparmor       2>/dev/null || true

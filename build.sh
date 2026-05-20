@@ -181,8 +181,8 @@ build_iso() {
         --backports false
         --win32-loader false
         --zsync false
-        --bootappend-live "boot=live components nomodeset vga=791 net.ifnames=0 biosdevname=0 apparmor=1 security=apparmor noeject noprompt username=atlazes autologin"
-        --bootappend-live-failsafe "boot=live components nomodeset vga=788 noeject noprompt net.ifnames=0 biosdevname=0 username=atlazes autologin"
+        --bootappend-live "boot=live components nomodeset vga=791 net.ifnames=0 biosdevname=0 apparmor=1 security=apparmor noeject noprompt username=atlazes"
+        --bootappend-live-failsafe "boot=live components nomodeset vga=788 noeject noprompt net.ifnames=0 biosdevname=0 username=atlazes"
     )
 
     if dpkg --compare-versions "$LB_VERSION" ge "20200101" 2>/dev/null; then
