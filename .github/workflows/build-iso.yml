@@ -23,9 +23,6 @@ jobs:
   build:
     name: Build ${{ github.event.inputs.edition || 'core' }} edition
     runs-on: ubuntu-22.04
-
-    # GitHub Actions free tier: 6 hours max, 14GB disk, 7GB RAM
-    # live-build needs ~10GB free disk space
     timeout-minutes: 120
 
     steps:
@@ -33,50 +30,37 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. Free up disk space ────────────────────────────────────────────────
-      # GitHub runners have ~25GB total but much is used by pre-installed tools
-      # live-build needs ~10-15GB free
-      - name: Free up disk space
+      # ── 2. تحرير مساحة القرص ─────────────────────────────────────────────────
+      - name: Free disk space
         run: |
-          echo "Disk before cleanup:"
+          echo "=== Disk before ==="
           df -h
 
-          # Remove large pre-installed packages not needed for building
           sudo apt-get remove -y \
-            '^dotnet-.*' \
-            '^llvm-.*' \
-            '^php.*' \
-            'azure-cli' \
-            'google-cloud-sdk' \
-            'google-chrome-stable' \
-            'firefox' \
-            'powershell' \
-            'mono-devel' \
-            'libgl1-mesa-dri' \
+            '^dotnet-.*' '^llvm-.*' '^php.*' \
+            azure-cli google-cloud-sdk google-chrome-stable \
+            firefox powershell mono-devel \
             2>/dev/null || true
 
           sudo apt-get autoremove -y 2>/dev/null || true
           sudo apt-get clean
 
-          # Remove large directories
           sudo rm -rf \
             /usr/share/dotnet \
             /usr/local/lib/android \
             /opt/ghc \
             /opt/hostedtoolcache/CodeQL \
             /usr/local/share/boost \
-            "$AGENT_TOOLSDIRECTORY" \
             2>/dev/null || true
 
-          echo "Disk after cleanup:"
+          echo "=== Disk after ==="
           df -h
 
-      # ── 3. Install build dependencies ────────────────────────────────────────
-      - name: Install build dependencies
+      # ── 3. تثبيت التبعيات الأساسية ───────────────────────────────────────────
+      - name: Install base dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y \
-            live-build \
             debootstrap \
             squashfs-tools \
             xorriso \
@@ -91,39 +75,90 @@ jobs:
             rsync \
             librsvg2-bin \
             ca-certificates \
-            debian-archive-keyring
+            debian-archive-keyring \
+            dpkg-dev
 
-      # ── 4. Verify live-build version ─────────────────────────────────────────
-      - name: Check live-build version
+      # ── 4. تثبيت live-build الحديث من Debian ─────────────────────────────────
+      # نسخة Ubuntu 22.04 هي 20190311 — قديمة جداً
+      # نثبت النسخة الحديثة من Debian bookworm مباشرة
+      - name: Install modern live-build from Debian
         run: |
-          lb --version
-          debootstrap --version
-          echo "Debian release: bookworm"
+          echo "=== Current live-build version ==="
+          apt-cache show live-build 2>/dev/null | grep Version || echo "not installed"
 
-      # ── 5. Build ISO ─────────────────────────────────────────────────────────
-      - name: Build ISO (${{ github.event.inputs.edition || 'core' }} edition)
+          # تحميل live-build من Debian bookworm
+          # النسخة 20230131 تدعم --bootloaders و --uefi-secure-boot و --updates
+          DEBIAN_LB_URL="http://deb.debian.org/debian/pool/main/l/live-build"
+
+          # البحث عن أحدث نسخة متاحة
+          echo "Fetching live-build package list..."
+          LB_DEB=$(curl -fsSL "${DEBIAN_LB_URL}/" 2>/dev/null | \
+            grep -oP 'live-build_[0-9]+_all\.deb' | \
+            sort -V | tail -1 || echo "")
+
+          if [[ -n "$LB_DEB" ]]; then
+            echo "Downloading: ${LB_DEB}"
+            curl -fsSL "${DEBIAN_LB_URL}/${LB_DEB}" -o "/tmp/${LB_DEB}"
+            sudo dpkg -i "/tmp/${LB_DEB}" || sudo apt-get install -f -y
+            rm -f "/tmp/${LB_DEB}"
+          else
+            echo "Could not find .deb file, trying direct version..."
+            # محاولة نسخة محددة
+            for VER in "20230131" "20221020" "20210208"; do
+              DEB_FILE="live-build_${VER}_all.deb"
+              if curl -fsSL --max-time 30 \
+                "${DEBIAN_LB_URL}/${DEB_FILE}" \
+                -o "/tmp/${DEB_FILE}" 2>/dev/null; then
+                sudo dpkg -i "/tmp/${DEB_FILE}" || sudo apt-get install -f -y
+                rm -f "/tmp/${DEB_FILE}"
+                echo "Installed live-build ${VER}"
+                break
+              fi
+            done
+          fi
+
+          echo "=== Installed live-build version ==="
+          lb --version || dpkg -l live-build | grep "^ii"
+
+      # ── 5. التحقق من البيئة ───────────────────────────────────────────────────
+      - name: Verify build environment
+        run: |
+          echo "=== live-build version ==="
+          lb --version
+
+          echo "=== lb config supported options (check for --bootloaders) ==="
+          lb config --help 2>&1 | grep -E "bootloaders|uefi|updates" || \
+            echo "WARNING: Some options may not be supported"
+
+          echo "=== debootstrap version ==="
+          debootstrap --version
+
+          echo "=== Available disk space ==="
+          df -h
+
+      # ── 6. بناء الـ ISO ───────────────────────────────────────────────────────
+      - name: Build ISO
         env:
           ATLAZES_EDITION: ${{ github.event.inputs.edition || 'core' }}
-          # Use a fast Debian mirror
           ATLAZES_MIRROR: http://deb.debian.org/debian
         run: |
           chmod +x build.sh
           sudo -E ./build.sh build --edition="${ATLAZES_EDITION}"
 
-      # ── 6. Show build results ────────────────────────────────────────────────
+      # ── 7. عرض نتائج البناء ──────────────────────────────────────────────────
       - name: Show build results
         if: always()
         run: |
-          echo "=== Output directory ==="
+          echo "=== Output files ==="
           ls -lh output/ 2>/dev/null || echo "No output directory"
 
           echo "=== Disk usage ==="
           df -h
 
-          echo "=== Last 50 lines of build log ==="
-          tail -50 build/build-*.log 2>/dev/null || echo "No build log found"
+          echo "=== Last 100 lines of build log ==="
+          tail -100 build/build-*.log 2>/dev/null || echo "No build log"
 
-      # ── 7. Upload ISO as artifact ────────────────────────────────────────────
+      # ── 8. رفع الـ ISO كـ artifact ────────────────────────────────────────────
       - name: Upload ISO artifact
         if: success()
         uses: actions/upload-artifact@v4
@@ -135,7 +170,7 @@ jobs:
             output/*.md5
           retention-days: 7
 
-      # ── 8. Upload build log on failure ───────────────────────────────────────
+      # ── 9. رفع سجل البناء عند الفشل ──────────────────────────────────────────
       - name: Upload build log on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -144,7 +179,7 @@ jobs:
           path: build/build-*.log
           retention-days: 3
 
-      # ── 9. Create GitHub Release (on tag push only) ──────────────────────────
+      # ── 10. إنشاء GitHub Release عند الـ tag ─────────────────────────────────
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') && success()
         uses: softprops/action-gh-release@v1
@@ -159,17 +194,15 @@ jobs:
             **Edition:** ${{ github.event.inputs.edition || 'core' }}
             **Base:** Debian 12 (Bookworm)
 
-            ### Verify your download
+            ### التحقق من التحميل
             ```bash
             sha256sum -c atlazes-os-*.sha256
             ```
 
-            ### Flash to USB
+            ### نسخ على USB
             ```bash
             sudo dd if=atlazes-os-*.iso of=/dev/sdX bs=4M status=progress oflag=sync
             ```
-
-            See [BETA.md](BETA.md) for known issues and how to report bugs.
           draft: false
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
         env:
