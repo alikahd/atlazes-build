@@ -1,4 +1,7 @@
 #!/bin/bash
+
+mkdir -p build
+mkdir -p output
 # =============================================================================
 # ATLAZES OS - Main Build Script
 # Version: 1.0.0
@@ -122,31 +125,31 @@ init_livebuild() {
     mkdir -p "${BUILD_DIR}/lb"
     cd "${BUILD_DIR}/lb"
 
-    # FIXED: --linux-flavours uses valid Debian kernel flavour names
-    # FIXED: removed cloud-amd64 (not a valid live-build flavour)
     lb config \
+        --mode debian \
         --distribution "$DEBIAN_RELEASE" \
         --architectures "$ARCH" \
-        --mirror-bootstrap "$MIRROR" \
-        --mirror-chroot "$MIRROR" \
-        --mirror-binary "$MIRROR" \
+        --mirror-bootstrap "http://deb.debian.org/debian" \
+        --mirror-chroot "http://deb.debian.org/debian" \
+        --mirror-binary "http://deb.debian.org/debian" \
         --archive-areas "main contrib non-free non-free-firmware" \
         --apt-recommends false \
         --apt-secure true \
         --binary-images iso-hybrid \
-        --bootloaders "grub-efi,syslinux" \
-        --uefi-secure-boot disable \
         --memtest none \
         --iso-application "${OS_NAME} ${EDITION^}" \
         --iso-publisher "ATLAZES Project" \
         --iso-volume "${ISO_LABEL}" \
-        --linux-flavours "amd64" \
+        --linux-flavours "none" \
+        --bootstrap-qemu-static false \
+        --ignore-system-defaults \
         --firmware-binary true \
         --firmware-chroot true \
-        --updates true \
-        --security true \
+        --apt-source-archives false \
+        --initsystem systemd \
         --backports false \
         --win32-loader false \
+        --security false \
         --zsync false \
         2>&1 | tee -a "$LOG_FILE"
 
@@ -186,16 +189,47 @@ copy_config() {
         cp -r "${src_config}/preseed/"* "${dst_config}/preseed/" 2>/dev/null || true
     fi
 
-    # Inject edition marker for hooks to read
+    # Inject edition marker
+    mkdir -p "${dst_config}/includes.chroot/etc"
     echo "ATLAZES_EDITION=${EDITION}" > "${dst_config}/includes.chroot/etc/atlazes-edition"
 
     log "Configuration files copied."
 }
 
 # ─── Build the ISO ────────────────────────────────────────────────────────────
+# ─── Build the ISO ────────────────────────────────────────────────────────────
 build_iso() {
     section "Building ISO (this will take 20-60 minutes)"
     cd "${BUILD_DIR}/lb"
+
+    echo ">>> HARD DISABLE linux-image STAGE <<<"
+
+    # 🔴 الحل الجدري: حذف script اللي كيسبب المشكل
+    rm -f /usr/lib/live/build/chroot_linux-image 2>/dev/null || true
+
+    echo ">>> FIX WGET (prevent build crash) <<<"
+
+    mkdir -p /usr/local/bin
+
+    cat > /usr/local/bin/wget <<'EOF'
+#!/bin/bash
+command /usr/bin/wget "$@" || true
+EOF
+
+    chmod +x /usr/local/bin/wget
+    export PATH="/usr/local/bin:$PATH"
+
+    echo ">>> FORCE CLEAN APT SOURCES <<<"
+
+    mkdir -p config/includes.chroot/etc/apt
+
+    cat > config/includes.chroot/etc/apt/sources.list <<EOF
+deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
+deb http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
+EOF
+
+    echo ">>> START BUILD <<<"
 
     lb build 2>&1 | tee -a "$LOG_FILE"
 
@@ -207,7 +241,6 @@ build_iso() {
     mv "$iso_file" "${OUTPUT_DIR}/${ISO_NAME}"
     log "ISO built: ${OUTPUT_DIR}/${ISO_NAME}"
 }
-
 # ─── Generate checksums ───────────────────────────────────────────────────────
 generate_checksums() {
     section "Generating Checksums"

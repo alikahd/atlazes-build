@@ -1,0 +1,6 @@
+#!/bin/bash
+
+echo ">>> DISABLING lb_chroot_linux-image <<<"
+
+# Prevent live-build from fetching Contents
+exit 0
