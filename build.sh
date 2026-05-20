@@ -3,12 +3,15 @@
 # ATLAZES OS - Main Build Script
 # Version: 1.0.0-beta.1
 # Base: Debian 12 (Bookworm)
-# Editions: core | dev | security
+#
+# الطريقة الصحيحة حسب التوثيق الرسمي لـ live-build:
+# lb config يُنشئ مجلد config/ في المجلد الحالي
+# lb build يُشغَّل من نفس المجلد
+# لذلك نُشغّل كل شيء من BUILD_DIR مباشرة
 # =============================================================================
 
 set -euo pipefail
 
-# ─── ألوان ────────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -17,22 +20,25 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-# ─── إعدادات البناء ───────────────────────────────────────────────────────────
 OS_NAME="ATLAZES OS"
 OS_VERSION="1.0.0"
 DEBIAN_RELEASE="bookworm"
 ARCH="amd64"
-BUILD_DIR="$(pwd)/build"
-OUTPUT_DIR="$(pwd)/output"
+
+# مجلد المشروع — حيث يوجد build.sh
+PROJECT_DIR="$(dirname "$(realpath "$0")")"
+
+# مجلد البناء — حيث يُشغَّل lb config و lb build
+BUILD_DIR="${PROJECT_DIR}/build/lb"
+OUTPUT_DIR="${PROJECT_DIR}/output"
+
 MIRROR="${ATLAZES_MIRROR:-http://deb.debian.org/debian}"
 EDITION="${ATLAZES_EDITION:-core}"
 
-# تهيئة LOG_FILE مبكراً
-mkdir -p "${BUILD_DIR}" 2>/dev/null || true
-LOG_FILE="${BUILD_DIR}/build-${EDITION}.log"
+mkdir -p "${PROJECT_DIR}/build" 2>/dev/null || true
+LOG_FILE="${PROJECT_DIR}/build/build-${EDITION}.log"
 touch "$LOG_FILE"
 
-# ─── دوال مساعدة ──────────────────────────────────────────────────────────────
 log()     { echo -e "${GREEN}[+]${NC} $*" | tee -a "$LOG_FILE"; }
 warn()    { echo -e "${YELLOW}[!]${NC} $*" | tee -a "$LOG_FILE"; }
 error()   { echo -e "${RED}[✗]${NC} $*" | tee -a "$LOG_FILE"; exit 1; }
@@ -42,12 +48,10 @@ section() {
     echo -e "${CYAN}${BOLD}══════════════════════════════════════${NC}\n" | tee -a "$LOG_FILE"
 }
 
-# ─── التحقق من الصلاحيات ──────────────────────────────────────────────────────
 check_root() {
     [[ $EUID -eq 0 ]] || error "يجب تشغيل السكريبت كـ root: sudo ./build.sh"
 }
 
-# ─── إعداد الإصدار ────────────────────────────────────────────────────────────
 setup_edition() {
     case "$EDITION" in
         core)
@@ -67,130 +71,98 @@ setup_edition() {
             log "الإصدار: Security"
             ;;
         *)
-            error "إصدار غير معروف: ${EDITION}. استخدم: core | dev | security"
+            error "إصدار غير معروف: ${EDITION}"
             ;;
     esac
-    LOG_FILE="${BUILD_DIR}/build-${EDITION}.log"
+    LOG_FILE="${PROJECT_DIR}/build/build-${EDITION}.log"
     touch "$LOG_FILE"
 }
 
-# ─── تثبيت live-build الحديث من Debian ───────────────────────────────────────
-# نسخة Ubuntu 22.04 من live-build (20190311) قديمة جداً ولا تدعم
-# --bootloaders و --uefi-secure-boot و --updates
-# الحل: تثبيت النسخة الحديثة مباشرة من مستودع Debian bookworm
 install_livebuild() {
-    section "تثبيت live-build الحديث من Debian"
-
+    section "تثبيت live-build"
     local LB_VERSION
     LB_VERSION=$(dpkg -l live-build 2>/dev/null | grep "^ii" | awk '{print $3}' || echo "none")
     log "نسخة live-build الحالية: ${LB_VERSION}"
 
-    # إذا كانت النسخة أقدم من 20230101 نثبت الأحدث
     if dpkg --compare-versions "$LB_VERSION" lt "20230101" 2>/dev/null || [[ "$LB_VERSION" == "none" ]]; then
-        warn "نسخة live-build قديمة. جاري تثبيت النسخة الحديثة من Debian..."
-
-        # إضافة مفتاح Debian وإضافة المستودع مؤقتاً
-        apt-get install -y debian-archive-keyring 2>/dev/null || true
-
-        # تحميل live-build مباشرة من Debian bookworm
-        local LB_DEB_URL="http://deb.debian.org/debian/pool/main/l/live-build"
-        local LB_DEB_FILE="live-build_20230131_all.deb"
-
-        # محاولة تحميل نسخة محددة
-        if curl -fsSL --max-time 60 \
-            "${LB_DEB_URL}/${LB_DEB_FILE}" \
-            -o "/tmp/${LB_DEB_FILE}" 2>/dev/null; then
-            dpkg -i "/tmp/${LB_DEB_FILE}" 2>/dev/null || apt-get install -f -y
-            rm -f "/tmp/${LB_DEB_FILE}"
-            log "تم تثبيت live-build من Debian."
-        else
-            # بديل: إضافة مستودع Debian مؤقتاً
-            warn "فشل التحميل المباشر. جاري إضافة مستودع Debian مؤقتاً..."
-            echo "deb http://deb.debian.org/debian bookworm main" \
-                > /etc/apt/sources.list.d/debian-bookworm-temp.list
-            apt-get update -qq 2>/dev/null || true
-            apt-get install -y -t bookworm live-build 2>/dev/null || \
-                apt-get install -y live-build
-            rm -f /etc/apt/sources.list.d/debian-bookworm-temp.list
-            apt-get update -qq 2>/dev/null || true
+        warn "تثبيت live-build الحديث من Debian..."
+        local URL="http://deb.debian.org/debian/pool/main/l/live-build"
+        local DEB
+        DEB=$(curl -fsSL "${URL}/" 2>/dev/null | grep -oP 'live-build_[0-9]+_all\.deb' | sort -V | tail -1 || echo "")
+        if [[ -n "$DEB" ]]; then
+            curl -fsSL "${URL}/${DEB}" -o "/tmp/${DEB}"
+            dpkg -i "/tmp/${DEB}" || apt-get install -f -y
+            rm -f "/tmp/${DEB}"
         fi
-    else
-        log "live-build حديث بما يكفي: ${LB_VERSION}"
     fi
-
-    local NEW_VERSION
-    NEW_VERSION=$(dpkg -l live-build 2>/dev/null | grep "^ii" | awk '{print $3}' || echo "unknown")
-    log "نسخة live-build المستخدمة: ${NEW_VERSION}"
+    log "live-build: $(lb --version 2>/dev/null || echo 'unknown')"
 }
 
-# ─── تثبيت التبعيات ───────────────────────────────────────────────────────────
 check_dependencies() {
     section "تثبيت التبعيات"
     apt-get update -qq
-
-    local deps=(
-        debootstrap
-        squashfs-tools
-        xorriso
-        isolinux
-        syslinux-efi
-        grub-pc-bin
-        grub-efi-amd64-bin
-        mtools
-        dosfstools
-        curl
-        wget
-        rsync
-        librsvg2-bin
-        ca-certificates
-        debian-archive-keyring
-    )
-
-    local missing=()
-    for dep in "${deps[@]}"; do
-        dpkg -l "$dep" 2>/dev/null | grep -q "^ii" || missing+=("$dep")
-    done
-
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        warn "تثبيت: ${missing[*]}"
-        apt-get install -y "${missing[@]}"
-    fi
-
-    # تثبيت live-build الحديث
+    apt-get install -y \
+        debootstrap squashfs-tools xorriso \
+        isolinux syslinux-efi \
+        grub-pc-bin grub-efi-amd64-bin \
+        mtools dosfstools \
+        curl wget rsync \
+        librsvg2-bin ca-certificates \
+        debian-archive-keyring 2>&1 | tee -a "$LOG_FILE"
     install_livebuild
-
     log "جميع التبعيات جاهزة."
 }
 
-# ─── تحضير المجلدات ───────────────────────────────────────────────────────────
 prepare_dirs() {
     section "تحضير مجلدات البناء"
     mkdir -p "$BUILD_DIR" "$OUTPUT_DIR"
-    touch "$LOG_FILE"
     log "مجلد البناء:  $BUILD_DIR"
     log "مجلد الإخراج: $OUTPUT_DIR"
 }
 
-# ─── تهيئة live-build ─────────────────────────────────────────────────────────
-init_livebuild() {
-    section "تهيئة live-build"
+build_iso() {
+    section "تهيئة live-build وبناء الـ ISO"
 
-    if [[ -d "${BUILD_DIR}/lb" ]]; then
-        warn "يوجد بناء سابق. جاري التنظيف..."
-        cd "${BUILD_DIR}/lb"
+    # ── تنظيف البناء السابق ───────────────────────────────────────────────────
+    if [[ -d "$BUILD_DIR" ]]; then
+        warn "تنظيف البناء السابق..."
+        cd "$BUILD_DIR"
         lb clean --purge 2>/dev/null || true
-        cd "$(dirname "$BUILD_DIR")"
-        rm -rf "${BUILD_DIR}/lb"
+        cd "$PROJECT_DIR"
+        rm -rf "$BUILD_DIR"
+        mkdir -p "$BUILD_DIR"
     fi
 
-    mkdir -p "${BUILD_DIR}/lb"
-    cd "${BUILD_DIR}/lb"
+    # ── الانتقال إلى مجلد البناء ──────────────────────────────────────────────
+    # حسب التوثيق الرسمي: lb config و lb build يُشغَّلان من نفس المجلد
+    # ويُنشئان config/ و binary/ في هذا المجلد
+    cd "$BUILD_DIR"
+    log "مجلد العمل الحالي: $(pwd)"
 
-    # ── تحديد الخيارات حسب نسخة live-build ──────────────────────────────────
+    # ── نسخ ملفات الإعداد قبل lb config ─────────────────────────────────────
+    # الطريقة الصحيحة: ننسخ config/ من المشروع إلى BUILD_DIR
+    # ثم يقرأها lb config و lb build من هنا
+    log "نسخ ملفات الإعداد..."
+    cp -r "${PROJECT_DIR}/config" .
+    log "محتوى config/:"
+    ls -la config/ | tee -a "$LOG_FILE"
+    log "قوائم الحزم:"
+    ls -la config/package-lists/ | tee -a "$LOG_FILE"
+
+    # حذف قائمة dev للإصدارات الأخرى
+    if [[ "$EDITION" != "dev" ]]; then
+        rm -f config/package-lists/05-development.list.chroot
+        log "تم استبعاد قائمة dev"
+    fi
+
+    # ── تحديد نسخة live-build ────────────────────────────────────────────────
     local LB_VERSION
     LB_VERSION=$(dpkg -l live-build 2>/dev/null | grep "^ii" | awk '{print $3}' || echo "0")
 
-    # الخيارات الأساسية المتوافقة مع جميع النسخ
+    # ── تشغيل lb config ───────────────────────────────────────────────────────
+    # lb config يقرأ config/ الموجود في المجلد الحالي ويُحدّثه
+    section "تشغيل lb config"
+
     local LB_OPTS=(
         --distribution "$DEBIAN_RELEASE"
         --architectures "$ARCH"
@@ -215,114 +187,38 @@ init_livebuild() {
         --bootappend-live-failsafe "boot=live components nomodeset vga=788 noeject noprompt net.ifnames=0 biosdevname=0 username=atlazes"
     )
 
-    # إضافة خيارات النسخ الحديثة فقط إذا كانت مدعومة
     if dpkg --compare-versions "$LB_VERSION" ge "20200101" 2>/dev/null; then
-        LB_OPTS+=(
-            --bootloaders "grub-efi,syslinux"
-            --uefi-secure-boot disable
-        )
-        log "إضافة خيارات UEFI (نسخة حديثة: ${LB_VERSION})"
-    else
-        warn "نسخة live-build قديمة (${LB_VERSION}) — تخطي --bootloaders و --uefi-secure-boot"
+        LB_OPTS+=(--bootloaders "grub-efi,syslinux" --uefi-secure-boot disable)
     fi
-
     if dpkg --compare-versions "$LB_VERSION" ge "20190311" 2>/dev/null; then
-        LB_OPTS+=(
-            --security true
-            --updates true
-        )
+        LB_OPTS+=(--security true --updates true)
     fi
-
-    # إضافة مرايا الأمان إذا كانت مدعومة
     if lb config --help 2>&1 | grep -q "mirror-chroot-security"; then
         LB_OPTS+=(
             --mirror-chroot-security "http://security.debian.org/debian-security"
             --mirror-binary-security "http://security.debian.org/debian-security"
         )
-        log "إضافة مرايا الأمان"
     fi
 
-    log "تشغيل lb config..."
     lb config "${LB_OPTS[@]}" 2>&1 | tee -a "$LOG_FILE"
 
-    log "تمت تهيئة live-build."
-}
+    # التحقق من قوائم الحزم بعد lb config
+    log "قوائم الحزم بعد lb config:"
+    ls -la config/package-lists/ | tee -a "$LOG_FILE"
 
-# ─── نسخ ملفات الإعداد ────────────────────────────────────────────────────────
-copy_config() {
-    section "نسخ ملفات الإعداد"
-    local src_config
-    src_config="$(dirname "$(realpath "$0")")/config"
-    local dst_config="${BUILD_DIR}/lb/config"
-
-    [[ -d "$src_config" ]] || error "مجلد الإعداد غير موجود: $src_config"
-
-    # ── قوائم الحزم ───────────────────────────────────────────────────────────
-    if [[ -d "${src_config}/package-lists" ]]; then
-        # استخدام rsync بدلاً من cp لتجنب "same file" error
-        rsync -av --update \
-            "${src_config}/package-lists/" \
-            "${dst_config}/package-lists/" 2>&1 | tee -a "$LOG_FILE"
-        log "تم نسخ قوائم الحزم:"
-        ls -la "${dst_config}/package-lists/" | tee -a "$LOG_FILE"
-    else
-        error "مجلد package-lists غير موجود: ${src_config}/package-lists"
-    fi
-
-    # حذف قائمة dev للإصدارات الأخرى
-    if [[ "$EDITION" != "dev" ]]; then
-        rm -f "${dst_config}/package-lists/05-development.list.chroot"
-        log "تم استبعاد قائمة dev"
-    fi
-
-    # ── الـ hooks ─────────────────────────────────────────────────────────────
-    if [[ -d "${src_config}/hooks" ]]; then
-        rsync -av --update \
-            "${src_config}/hooks/" \
-            "${dst_config}/hooks/" 2>&1 | tee -a "$LOG_FILE"
-        find "${dst_config}/hooks/" -name "*.hook.chroot" -exec chmod +x {} \;
-        find "${dst_config}/hooks/" -name "*.hook.binary" -exec chmod +x {} \;
-        log "تم نسخ الـ hooks:"
-        ls -la "${dst_config}/hooks/" | tee -a "$LOG_FILE"
-    fi
-
-    # ── الملفات المضمنة ───────────────────────────────────────────────────────
-    if [[ -d "${src_config}/includes.chroot" ]]; then
-        rsync -av --update \
-            "${src_config}/includes.chroot/" \
-            "${dst_config}/includes.chroot/" 2>&1 | tee -a "$LOG_FILE"
-    fi
-
-    # ── preseed ───────────────────────────────────────────────────────────────
-    if [[ -d "${src_config}/preseed" ]]; then
-        rsync -av --update \
-            "${src_config}/preseed/" \
-            "${dst_config}/preseed/" 2>&1 | tee -a "$LOG_FILE"
-    fi
-
-    # ── علامة الإصدار ─────────────────────────────────────────────────────────
-    mkdir -p "${dst_config}/includes.chroot/etc"
-    echo "ATLAZES_EDITION=${EDITION}" > "${dst_config}/includes.chroot/etc/atlazes-edition"
-
-    log "اكتمل نسخ ملفات الإعداد."
-}
-
-# ─── بناء الـ ISO ─────────────────────────────────────────────────────────────
-build_iso() {
+    # ── تشغيل lb build ────────────────────────────────────────────────────────
     section "بناء الـ ISO (قد يستغرق 20-60 دقيقة)"
-    cd "${BUILD_DIR}/lb"
-
     lb build 2>&1 | tee -a "$LOG_FILE"
 
+    # ── نقل الـ ISO ───────────────────────────────────────────────────────────
     local iso_file
-    iso_file=$(find "${BUILD_DIR}/lb" -maxdepth 1 -name "*.iso" | head -1)
-    [[ -z "$iso_file" ]] && error "فشل البناء: لم يُنشأ ملف ISO. راجع $LOG_FILE"
+    iso_file=$(find "$BUILD_DIR" -maxdepth 1 -name "*.iso" | head -1)
+    [[ -z "$iso_file" ]] && error "فشل البناء: لم يُنشأ ملف ISO"
 
     mv "$iso_file" "${OUTPUT_DIR}/${ISO_NAME}"
     log "تم بناء الـ ISO: ${OUTPUT_DIR}/${ISO_NAME}"
 }
 
-# ─── توليد checksums ──────────────────────────────────────────────────────────
 generate_checksums() {
     section "توليد Checksums"
     cd "$OUTPUT_DIR"
@@ -331,7 +227,6 @@ generate_checksums() {
     log "تم كتابة الـ checksums."
 }
 
-# ─── ملخص البناء ──────────────────────────────────────────────────────────────
 print_summary() {
     section "اكتمل البناء"
     echo -e "${GREEN}${BOLD}"
@@ -340,23 +235,21 @@ print_summary() {
     echo "  ╠══════════════════════════════════════════════════╣"
     printf "  ║  Edition : %-37s║\n" "${EDITION^}"
     printf "  ║  ISO     : %-37s║\n" "${ISO_NAME}"
-    printf "  ║  Log     : %-37s║\n" "build/build-${EDITION}.log"
     echo "  ╚══════════════════════════════════════════════════╝"
     echo -e "${NC}"
 }
 
-# ─── تنظيف البناء ─────────────────────────────────────────────────────────────
 clean_build() {
-    section "تنظيف البناء السابق"
-    if [[ -d "${BUILD_DIR}/lb" ]]; then
-        cd "${BUILD_DIR}/lb"
+    section "تنظيف البناء"
+    if [[ -d "$BUILD_DIR" ]]; then
+        cd "$BUILD_DIR"
         lb clean --purge 2>/dev/null || true
+        cd "$PROJECT_DIR"
     fi
-    rm -rf "$BUILD_DIR"
+    rm -rf "${PROJECT_DIR}/build"
     log "تم التنظيف."
 }
 
-# ─── تحليل المعاملات ──────────────────────────────────────────────────────────
 parse_args() {
     local cmd="${1:-build}"
     shift || true
@@ -371,7 +264,6 @@ parse_args() {
     echo "$cmd"
 }
 
-# ─── الدالة الرئيسية ──────────────────────────────────────────────────────────
 main() {
     echo -e "${BLUE}${BOLD}"
     echo "  ╔══════════════════════════════════════════╗"
@@ -389,8 +281,6 @@ main() {
             check_dependencies
             prepare_dirs
             setup_edition
-            init_livebuild
-            copy_config
             build_iso
             generate_checksums
             print_summary
