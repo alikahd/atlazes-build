@@ -10,7 +10,7 @@ calamares
 # Partitioning backend
 parted
 libparted2
-kpmcore
+# kpmcore غير موجود في Debian 12 كحزمة مستقلة — يُثبَّت تلقائياً مع calamares
 
 # Python (Calamares modules)
 python3

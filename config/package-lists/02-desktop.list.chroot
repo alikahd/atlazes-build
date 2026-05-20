@@ -8,7 +8,8 @@ xfce4-goodies
 xfce4-terminal
 xfce4-taskmanager
 xfce4-power-manager
-xfce4-screensaver
+# xfce4-screensaver غير موجود في Debian 12 — يُستبدل بـ xscreensaver
+xscreensaver
 xfce4-notifyd
 xfce4-whiskermenu-plugin
 xfce4-clipman-plugin

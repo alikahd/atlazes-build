@@ -71,7 +71,9 @@ pinentry-gtk2
 seahorse
 
 # Secure DNS
-dnscrypt-proxy
+# dnscrypt-proxy غير موجود في Debian 12 Bookworm الرسمي
+# يُثبَّت من backports أو يدوياً بعد التثبيت
+# dnscrypt-proxy
 
 # VPN support
 openvpn

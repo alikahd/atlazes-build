@@ -26,11 +26,17 @@ connection.stable-id=${CONNECTION}/${BOOT}
 EOF
 
 # ─── dnscrypt-proxy: listen on port 53 ───────────────────────────────────────
-# dnscrypt-proxy encrypts DNS queries in transit between this machine and the
-# resolver. The resolver (Quad9/Cloudflare) still receives queries in plaintext.
-# Trust is based on their published no-log policies, not technical guarantees.
-# To change resolvers: edit server_names below.
-# To disable: sudo systemctl stop dnscrypt-proxy && sudo systemctl disable dnscrypt-proxy
+# dnscrypt-proxy غير موجود في Debian 12 الرسمي — نثبته من backports
+if ! command -v dnscrypt-proxy &>/dev/null; then
+    echo "deb http://deb.debian.org/debian bookworm-backports main" \
+        > /etc/apt/sources.list.d/backports.list
+    apt-get update -qq 2>/dev/null || true
+    apt-get install -y -t bookworm-backports dnscrypt-proxy 2>/dev/null || \
+        apt-get install -y dnscrypt-proxy 2>/dev/null || \
+        echo "[ATLAZES] تحذير: dnscrypt-proxy غير متاح، تخطي"
+    rm -f /etc/apt/sources.list.d/backports.list
+fi
+
 if [[ -f /etc/dnscrypt-proxy/dnscrypt-proxy.toml ]]; then
     cat > /etc/dnscrypt-proxy/dnscrypt-proxy.toml << 'EOF'
 # ATLAZES OS - dnscrypt-proxy configuration
