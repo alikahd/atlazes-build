@@ -25,19 +25,32 @@ ethernet.cloned-mac-address=random
 connection.stable-id=${CONNECTION}/${BOOT}
 EOF
 
-# ─── dnscrypt-proxy: listen on port 53 ───────────────────────────────────────
-# dnscrypt-proxy غير موجود في Debian 12 الرسمي — نثبته من backports
+# ─── dnscrypt-proxy: تثبيت اختياري من backports ─────────────────────────────
+# dnscrypt-proxy غير موجود في Debian 12 main — نحاول من backports
+# إذا فشل التثبيت نتخطاه بدون إيقاف البناء (set -e لا يُطبَّق هنا)
+DNSCRYPT_INSTALLED=false
 if ! command -v dnscrypt-proxy &>/dev/null; then
+    echo "[ATLAZES] محاولة تثبيت dnscrypt-proxy من backports..."
     echo "deb http://deb.debian.org/debian bookworm-backports main" \
         > /etc/apt/sources.list.d/backports.list
     apt-get update -qq 2>/dev/null || true
-    apt-get install -y -t bookworm-backports dnscrypt-proxy 2>/dev/null || \
-        apt-get install -y dnscrypt-proxy 2>/dev/null || \
-        echo "[ATLAZES] تحذير: dnscrypt-proxy غير متاح، تخطي"
+
+    if apt-get install -y -t bookworm-backports dnscrypt-proxy 2>/dev/null; then
+        DNSCRYPT_INSTALLED=true
+        echo "[ATLAZES] ✓ dnscrypt-proxy مثبت من backports"
+    elif apt-get install -y dnscrypt-proxy 2>/dev/null; then
+        DNSCRYPT_INSTALLED=true
+        echo "[ATLAZES] ✓ dnscrypt-proxy مثبت"
+    else
+        echo "[ATLAZES] تحذير: dnscrypt-proxy غير متاح — سيُستخدم systemd-resolved كـ DNS"
+    fi
     rm -f /etc/apt/sources.list.d/backports.list
+    apt-get update -qq 2>/dev/null || true
+else
+    DNSCRYPT_INSTALLED=true
 fi
 
-if [[ -f /etc/dnscrypt-proxy/dnscrypt-proxy.toml ]]; then
+if [[ -f /etc/dnscrypt-proxy/dnscrypt-proxy.toml ]] && [[ "$DNSCRYPT_INSTALLED" == "true" ]]; then
     cat > /etc/dnscrypt-proxy/dnscrypt-proxy.toml << 'EOF'
 # ATLAZES OS - dnscrypt-proxy configuration
 #
@@ -126,12 +139,10 @@ DNSSEC=allow-downgrade
 ReadEtcHosts=yes
 EOF
 
-# ─── resolv.conf: point to dnscrypt-proxy ────────────────────────────────────
+# ─── resolv.conf: point to dnscrypt-proxy or fallback ────────────────────────
 # FIXED: Do NOT use chattr +i - this breaks VPN, captive portals, and NM
-# Instead, use a resolvconf hook or NetworkManager dispatcher to restore it
-# The resolv.conf is set here for the live session default
-# On installed systems, NetworkManager manages this file
-cat > /etc/resolv.conf << 'EOF'
+if [[ "$DNSCRYPT_INSTALLED" == "true" ]]; then
+    cat > /etc/resolv.conf << 'EOF'
 # ATLAZES OS - DNS via dnscrypt-proxy
 # DNS queries are encrypted in transit to the resolver.
 # The resolver (Quad9/Cloudflare) still receives queries in plaintext.
@@ -140,6 +151,16 @@ cat > /etc/resolv.conf << 'EOF'
 nameserver 127.0.0.1
 options edns0 trust-ad
 EOF
+else
+    # dnscrypt-proxy غير مثبت — استخدام Quad9 مباشرة
+    cat > /etc/resolv.conf << 'EOF'
+# ATLAZES OS - DNS via Quad9 (fallback - dnscrypt-proxy not available)
+# To enable encrypted DNS: sudo apt install dnscrypt-proxy
+nameserver 9.9.9.9
+nameserver 149.112.112.112
+options edns0
+EOF
+fi
 
 # ─── NetworkManager dispatcher: restore encrypted DNS after VPN disconnect ────
 mkdir -p /etc/NetworkManager/dispatcher.d

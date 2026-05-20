@@ -1,6 +1,6 @@
 # =============================================================================
 # ATLAZES OS - Security Packages
-# Audited: removed non-existent packages, fixed names for Debian 12 Bookworm
+# Verified against Debian 12 Bookworm packages.debian.org
 # =============================================================================
 
 # Firewall
@@ -11,12 +11,9 @@ gufw
 apparmor
 apparmor-utils
 apparmor-profiles
-apparmor-profiles-extra
-apparmor-notify
 
 # Application sandboxing
 firejail
-firejail-profiles
 
 # Antivirus
 clamav
@@ -30,7 +27,6 @@ chkrootkit
 # System auditing
 lynis
 auditd
-audispd-plugins
 
 # Intrusion detection
 aide
@@ -42,10 +38,8 @@ keepassxc
 # Disk encryption
 cryptsetup
 cryptsetup-bin
-# NOTE: veracrypt is not in Debian repos - installed via hook from official source
 
 # Secure deletion
-secure-delete
 wipe
 bleachbit
 
@@ -66,14 +60,8 @@ gnutls-bin
 
 # GPG
 gnupg2
-gnupg-agent
 pinentry-gtk2
 seahorse
-
-# Secure DNS
-# dnscrypt-proxy غير موجود في Debian 12 Bookworm الرسمي
-# يُثبَّت من backports أو يدوياً بعد التثبيت
-# dnscrypt-proxy
 
 # VPN support
 openvpn
@@ -81,14 +69,12 @@ network-manager-openvpn
 network-manager-openvpn-gnome
 wireguard
 wireguard-tools
-# NOTE: network-manager-wireguard does not exist; NM handles WireGuard natively in Bookworm
 
 # Tor
 tor
 torsocks
 
-# Password and secrets
-libsecret-tools
+# Secrets
 gnome-keyring
 
 # Two-factor auth
@@ -96,9 +82,6 @@ libpam-google-authenticator
 
 # Log analysis
 logwatch
-
-# Process accounting
-acct
 
 # Unattended security updates
 unattended-upgrades

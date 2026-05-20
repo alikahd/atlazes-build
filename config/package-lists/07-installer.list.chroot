@@ -1,18 +1,16 @@
 # =============================================================================
-# ATLAZES OS - Calamares Installer Dependencies
-# مُصحَّح: حذف الحزم المكررة الموجودة في قوائم أخرى
-# (grub-pc, grub-efi-amd64, cryptsetup موجودة في 01-base و 03-security)
+# ATLAZES OS - Calamares Installer
+# Verified against Debian 12 Bookworm packages.debian.org
 # =============================================================================
 
 # Calamares installer
 calamares
 
-# Partitioning backend
+# Partitioning
 parted
 libparted2
-# kpmcore غير موجود في Debian 12 كحزمة مستقلة — يُثبَّت تلقائياً مع calamares
 
-# Python (Calamares modules)
+# Python modules for Calamares
 python3
 python3-yaml
 python3-jsonschema

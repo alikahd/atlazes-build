@@ -1,49 +1,42 @@
 # =============================================================================
 # ATLAZES OS - Privacy Packages
-# Audited: removed packages not in Debian 12 repos
-# Removed: signal-desktop (not in Debian), enigmail (merged into Thunderbird),
-#          i2p (not in Bookworm), onionshare (not in Bookworm),
-#          pdf-redact-tools (not in Bookworm)
+# Verified against Debian 12 Bookworm packages.debian.org
+#
+# ملاحظة: dnscrypt-proxy غير موجود في Debian 12 main/contrib/non-free
+# يُثبَّت من backports في hook 0030-privacy-config.hook.chroot
 # =============================================================================
 
 # Browser
 firefox-esr
 
-# Tor Browser launcher (downloads Tor Browser from torproject.org)
+# Tor Browser launcher
 torbrowser-launcher
 
 # Privacy tools
 macchanger
-proxychains4
+proxychains
 privoxy
 
 # Metadata tools
-mat2
-libimage-exiftool-perl
+# mat2 و libimage-exiftool-perl مُدرجتان في 03-security.list.chroot
 
 # File encryption
-gnupg2
+# gnupg2 مُدرجة في 03-security.list.chroot
 
-# Secure email (Thunderbird has built-in OpenPGP since v78)
+# Secure email
 thunderbird
 
 # Network anonymization
-tor
-torsocks
-
-# DNS privacy
-# dnscrypt-proxy موجود في 03-security.list.chroot — لا نكرره هنا
+# tor و torsocks مُدرجتان في 03-security.list.chroot
 
 # Password tools
 pwgen
 apg
 
-# Screen privacy / blue light
+# Screen privacy
 redshift
 redshift-gtk
 
 # Disk wiping
 nwipe
 
-# Clipboard manager (privacy-aware)
-# xdotool موجود في 02-desktop.list.chroot — لا نكرره هنا

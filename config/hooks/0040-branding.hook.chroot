@@ -71,7 +71,7 @@ cat > "${USER_HOME}/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml" << '
 <channel name="xsettings" version="1.0">
   <property name="Net" type="empty">
     <property name="ThemeName" type="string" value="Arc-Dark"/>
-    <property name="IconThemeName" type="string" value="Papirus-Dark"/>
+    <property name="IconThemeName" type="string" value="Adwaita"/>
     <property name="DoubleClickTime" type="int" value="400"/>
     <property name="DoubleClickDistance" type="int" value="5"/>
     <property name="DndDragThreshold" type="int" value="8"/>
@@ -230,7 +230,7 @@ EOF
 cat > /etc/lightdm/lightdm-gtk-greeter.conf << 'EOF'
 [greeter]
 theme-name=Arc-Dark
-icon-theme-name=Papirus-Dark
+icon-theme-name=Adwaita
 font-name=Noto Sans 10
 xft-antialias=true
 xft-dpi=96
@@ -378,6 +378,16 @@ EOF
 
 # ─── Set correct ownership ────────────────────────────────────────────────────
 chown -R "${LIVE_USER}:${LIVE_USER}" "${USER_HOME}/.config" 2>/dev/null || true
+
+# ─── نسخ إعدادات XFCE4 إلى /etc/skel/ ───────────────────────────────────────
+# live-config يُنشئ المستخدم من /etc/skel/ أثناء الإقلاع
+# لذا يجب أن تكون إعدادات XFCE4 في /etc/skel/ لتُطبَّق على المستخدم الجديد
+mkdir -p /etc/skel/.config
+cp -r "${USER_HOME}/.config/xfce4" /etc/skel/.config/ 2>/dev/null || true
+cp -r "${USER_HOME}/.config/neofetch" /etc/skel/.config/ 2>/dev/null || true
+chmod -R 644 /etc/skel/.config 2>/dev/null || true
+find /etc/skel/.config -type d -exec chmod 755 {} \; 2>/dev/null || true
+echo "[ATLAZES] XFCE4 config copied to /etc/skel/"
 
 # ─── Create wallpaper directory ───────────────────────────────────────────────
 mkdir -p /usr/share/atlazes/wallpapers

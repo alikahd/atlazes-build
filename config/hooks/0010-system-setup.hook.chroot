@@ -28,26 +28,12 @@ ln -sf /usr/share/zoneinfo/UTC /etc/localtime
 echo "UTC" > /etc/timezone
 
 # ─── Configure live-config to use 'atlazes' as live user ─────────────────────
-# live-config ينشئ مستخدم 'user' افتراضياً — نُخبره باستخدام 'atlazes' بدلاً منه
+# ملاحظة: /etc/live/config.conf.d/atlazes-user.conf يُنسخ من includes.chroot
+# نتأكد فقط من وجود المجلد
 mkdir -p /etc/live/config.conf.d
-cat > /etc/live/config.conf.d/atlazes-user.conf << 'EOF'
-# ATLAZES OS - Live user configuration
-LIVE_USERNAME="atlazes"
-LIVE_USER_FULLNAME="ATLAZES OS Live User"
-LIVE_USER_DEFAULT_GROUPS="sudo audio video plugdev netdev bluetooth cdrom floppy dip"
-EOF
 
-# إعداد live-config الرئيسي
-mkdir -p /etc/live
-cat > /etc/live/config.conf << 'EOF'
-# ATLAZES OS - live-config main configuration
-LIVE_USERNAME="atlazes"
-LIVE_USER_FULLNAME="ATLAZES OS Live User"
-LIVE_HOSTNAME="atlazes"
-LIVE_UTC="yes"
-LIVE_LOCALES="en_US.UTF-8"
-LIVE_KEYBOARD_LAYOUTS="us"
-EOF
+# ملاحظة: /etc/live/config.conf يُنسخ من includes.chroot تلقائياً
+# لا نُعيد كتابته هنا لتجنب التعارض
 
 # ─── Create live user ─────────────────────────────────────────────────────────
 # إنشاء المستخدم يدوياً كـ backup إذا فشل live-config
@@ -63,7 +49,7 @@ echo "root:atlazes" | chpasswd
 
 # ─── Autologin for live session ───────────────────────────────────────────────
 # ملاحظة: إعداد LightDM الكامل يتم في hook 0041-display-fix
-# هنا نضع فقط إعداداً بسيطاً كـ fallback
+# هنا نضع فقط إعداداً بسيطاً كـ fallback في lightdm.conf.d/
 mkdir -p /etc/lightdm/lightdm.conf.d
 cat > /etc/lightdm/lightdm.conf.d/10-autologin.conf << 'EOF'
 [Seat:*]
@@ -79,7 +65,10 @@ systemctl enable bluetooth      2>/dev/null || true
 systemctl enable cups           2>/dev/null || true
 systemctl enable apparmor       2>/dev/null || true
 systemctl enable ufw            2>/dev/null || true
-systemctl enable dnscrypt-proxy 2>/dev/null || true
+# dnscrypt-proxy: تفعيل فقط إذا كان مثبتاً
+if dpkg -l dnscrypt-proxy 2>/dev/null | grep -q "^ii"; then
+    systemctl enable dnscrypt-proxy 2>/dev/null || true
+fi
 systemctl enable tlp            2>/dev/null || true
 systemctl enable auditd         2>/dev/null || true
 systemctl enable fail2ban       2>/dev/null || true

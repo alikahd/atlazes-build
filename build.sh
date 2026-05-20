@@ -178,13 +178,11 @@ build_iso() {
         --iso-publisher "ATLAZES Project"
         --iso-volume "${ISO_LABEL}"
         --linux-flavours "amd64"
-        --firmware-binary true
-        --firmware-chroot true
         --backports false
         --win32-loader false
         --zsync false
-        --bootappend-live "boot=live components nomodeset vga=791 net.ifnames=0 biosdevname=0 apparmor=1 security=apparmor noeject noprompt username=atlazes"
-        --bootappend-live-failsafe "boot=live components nomodeset vga=788 noeject noprompt net.ifnames=0 biosdevname=0 username=atlazes"
+        --bootappend-live "boot=live components nomodeset vga=791 net.ifnames=0 biosdevname=0 apparmor=1 security=apparmor noeject noprompt username=atlazes autologin"
+        --bootappend-live-failsafe "boot=live components nomodeset vga=788 noeject noprompt net.ifnames=0 biosdevname=0 username=atlazes autologin"
     )
 
     if dpkg --compare-versions "$LB_VERSION" ge "20200101" 2>/dev/null; then
@@ -192,6 +190,10 @@ build_iso() {
     fi
     if dpkg --compare-versions "$LB_VERSION" ge "20190311" 2>/dev/null; then
         LB_OPTS+=(--security true --updates true)
+    fi
+    # firmware-binary و firmware-chroot: مدعومان في live-build القديم فقط
+    if lb config --help 2>&1 | grep -q "firmware-binary"; then
+        LB_OPTS+=(--firmware-binary true --firmware-chroot true)
     fi
     if lb config --help 2>&1 | grep -q "mirror-chroot-security"; then
         LB_OPTS+=(

@@ -19,7 +19,6 @@ tree
 less
 file
 lsof
-dstat
 iotop
 sysstat
 pciutils
@@ -67,7 +66,7 @@ gzip
 bzip2
 xz-utils
 zip
-p7zip-full
+# p7zip-full مُدرج أعلاه في Core utilities
 
 # System monitoring
 procps
@@ -77,13 +76,12 @@ lm-sensors
 smartmontools
 
 # Boot and firmware
-grub-pc
-grub-efi-amd64
+# ملاحظة: grub-pc و grub-efi-amd64 يتعارضان — لا تضعهما معاً
+# live-build يتولى تثبيت GRUB تلقائياً حسب نوع الإقلاع (BIOS أو UEFI)
 grub2-common
 os-prober
 initramfs-tools
 linux-image-amd64
-# linux-headers-amd64 محذوف — يُضيف 400MB للـ ISO بدون فائدة في الجلسة الحية
 
 # Live system — هذه الحزم الثلاث ضرورية لإقلاع الجلسة الحية
 # live-boot    : يتولى تحميل squashfs وتركيب نظام الملفات الجذر

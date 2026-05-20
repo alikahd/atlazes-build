@@ -1,9 +1,9 @@
 # =============================================================================
 # ATLAZES OS - Hardware Support & Firmware
-# Audited: consolidated firmware list, removed duplicates
+# Verified against Debian 12 Bookworm packages.debian.org
 # =============================================================================
 
-# ── Non-free firmware (broad hardware support) ────────────────────────────────
+# Non-free firmware
 firmware-linux
 firmware-linux-nonfree
 firmware-linux-free
@@ -18,9 +18,9 @@ firmware-ralink
 firmware-zd1211
 firmware-libertas
 firmware-ti-connectivity
-firmware-sof-signed
+# firmware-sof-signed: موجود في trixie/sid فقط — غير موجود في bookworm
 
-# ── GPU drivers ───────────────────────────────────────────────────────────────
+# GPU drivers
 xserver-xorg-video-amdgpu
 xserver-xorg-video-radeon
 xserver-xorg-video-nouveau
@@ -30,59 +30,53 @@ xserver-xorg-video-fbdev
 mesa-utils
 libgl1-mesa-dri
 libglx-mesa0
-# mesa-vulkan-drivers و vulkan-tools محذوفان — يُضيفان حجماً كبيراً بدون فائدة في الجلسة الحية
 
-# ── Input devices ─────────────────────────────────────────────────────────────
+# Input devices
 xserver-xorg-input-libinput
 xserver-xorg-input-synaptics
-xserver-xorg-input-wacom
 
-# ── USB ───────────────────────────────────────────────────────────────────────
+# USB
 usbutils
 libusb-1.0-0
 usb-modeswitch
 usb-modeswitch-data
 
-# ── Bluetooth ─────────────────────────────────────────────────────────────────
+# Bluetooth
 bluez
 bluez-firmware
 blueman
 pulseaudio-module-bluetooth
 
-# ── WiFi tools ────────────────────────────────────────────────────────────────
+# WiFi
 wireless-tools
 wpasupplicant
 iw
 rfkill
 
-# ── Touchpad ──────────────────────────────────────────────────────────────────
+# Touchpad
 libinput-tools
 xinput
 
-# ── Webcam ────────────────────────────────────────────────────────────────────
+# Webcam
 v4l-utils
-guvcview
 
-# ── Printer support ───────────────────────────────────────────────────────────
+# Printer support
 cups
 cups-filters
-cups-pdf
+# cups-pdf في Debian 12 هو virtual package — الاسم الحقيقي:
+printer-driver-cups-pdf
 hplip
 foomatic-db
-foomatic-db-engine
 
-# ── Scanner support ───────────────────────────────────────────────────────────
+# Scanner support
 sane-utils
-xsane
 
-# ── Power management ──────────────────────────────────────────────────────────
+# Power management
 acpid
-acpi-support
 tlp
 tlp-rdw
 powertop
-thermald
+# thermald: موجود في bookworm-backports فقط — يُثبَّت يدوياً إذا احتجته
 
-# ── Laptop extras ─────────────────────────────────────────────────────────────
-laptop-detect
+# Laptop extras
 hdparm

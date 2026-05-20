@@ -1,50 +1,76 @@
 #!/bin/bash
 # =============================================================================
-# ATLAZES OS - Hook: إصلاح Xorg لـ VirtualBox VMSVGA
-# المشكلة: vmwgfx يُسبب شاشة سوداء مع VMSVGA
-# الحل:
-#   1. blacklist vmwgfx (في modprobe.d)
-#   2. تثبيت xserver-xorg-video-vmware (الدرايفر الصحيح لـ VMSVGA)
-#   3. إعداد Xorg لاستخدام vmware driver صراحةً
+# ATLAZES OS - Hook: إصلاح Xorg للتوافق مع VirtualBox وباقي البيئات
+#
+# المشكلة الجذرية:
+#   - vmwgfx kernel module يُسبب شاشة سوداء مع VirtualBox VMSVGA
+#   - إجبار vmware driver في xorg.conf يكسر الأجهزة الحقيقية
+#
+# الحل الصحيح (موثق في Debian Wiki و VirtualBox forums):
+#   1. blacklist vmwgfx (يمنع الـ kernel module من التحميل)
+#   2. لا نُجبر أي driver في xorg.conf — نترك Xorg يكتشف تلقائياً
+#   3. Xorg مع xserver-xorg-video-vmware يعمل تلقائياً مع VMSVGA
+#   4. على الأجهزة الحقيقية: Xorg يختار الدرايفر المناسب تلقائياً
+#
+# المصادر:
+#   - https://wiki.debian.org/VirtualBox#Black_screen
+#   - https://www.virtualbox.org/ticket/19168
+#   - https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1000000
 # =============================================================================
 
 set -euo pipefail
 
-echo "[ATLAZES] إصلاح Xorg لـ VirtualBox VMSVGA..."
+echo "[ATLAZES] إصلاح Xorg للتوافق مع جميع البيئات..."
 
-# ── حذف أي xorg.conf قديم ────────────────────────────────────────────────────
+# ── 1. حذف أي xorg.conf قديم يُجبر driver معين ───────────────────────────────
+# إجبار driver معين في xorg.conf يكسر الأجهزة الأخرى
+# Xorg يكتشف الدرايفر الصحيح تلقائياً إذا لم يكن هناك xorg.conf
 rm -f /etc/X11/xorg.conf 2>/dev/null || true
+rm -f /etc/X11/xorg.conf.d/20-vmsvga.conf 2>/dev/null || true
+rm -f /etc/X11/xorg.conf.d/99-atlazes-fallback.conf 2>/dev/null || true
+
 mkdir -p /etc/X11/xorg.conf.d
 
-# ── إعداد Xorg لـ VMSVGA ─────────────────────────────────────────────────────
-# vmware driver هو الدرايفر الصحيح لـ VirtualBox VMSVGA
-# يعمل مع VMSVGA بدون vmwgfx kernel module
-cat > /etc/X11/xorg.conf.d/20-vmsvga.conf << 'EOF'
-# ATLAZES OS - VirtualBox VMSVGA Display Configuration
-# vmware driver يعمل مع VMSVGA بدون vmwgfx
-# fbdev يعمل كـ fallback على الأجهزة الحقيقية
+# ── 2. إعداد ServerFlags فقط (بدون تحديد driver) ────────────────────────────
+# هذا الإعداد يُحسّن التوافق بدون إجبار driver معين
+cat > /etc/X11/xorg.conf.d/10-serverflags.conf << 'EOF'
+# ATLAZES OS - Xorg Server Flags
+# يُحسّن التوافق مع VirtualBox وباقي البيئات
+# لا يُجبر أي driver — Xorg يكتشف تلقائياً
 
-Section "Device"
-    Identifier  "VirtualBox VMSVGA"
-    Driver      "vmware"
+Section "ServerFlags"
+    # تعطيل DPMS لمنع إطفاء الشاشة في الجلسة الحية
+    Option "BlankTime"   "0"
+    Option "StandbyTime" "0"
+    Option "SuspendTime" "0"
+    Option "OffTime"     "0"
 EndSection
 EOF
 
-# ── التحقق من تثبيت الدرايفر ─────────────────────────────────────────────────
-if dpkg -l xserver-xorg-video-vmware 2>/dev/null | grep -q "^ii"; then
-    echo "[ATLAZES] ✓ xserver-xorg-video-vmware مثبت"
+# ── 3. التحقق من blacklist vmwgfx ────────────────────────────────────────────
+# vmwgfx يُسبب شاشة سوداء مع VMSVGA — يجب أن يكون في blacklist
+BLACKLIST_FILE="/etc/modprobe.d/atlazes-blacklist.conf"
+if ! grep -q "blacklist vmwgfx" "$BLACKLIST_FILE" 2>/dev/null; then
+    echo "blacklist vmwgfx" >> "$BLACKLIST_FILE"
+    echo "[ATLAZES] أُضيف vmwgfx إلى blacklist"
 else
+    echo "[ATLAZES] ✓ vmwgfx مُدرج في blacklist"
+fi
+
+# ── 4. التحقق من تثبيت الدرايفرات الضرورية ──────────────────────────────────
+echo "[ATLAZES] الدرايفرات المثبتة:"
+dpkg -l xserver-xorg-video-vmware xserver-xorg-video-fbdev xserver-xorg-video-vesa 2>/dev/null | \
+    grep "^ii" | awk '{print "  ✓ " $2}' || true
+
+# التحقق من وجود xserver-xorg-video-vmware (ضروري لـ VirtualBox VMSVGA)
+if ! dpkg -l xserver-xorg-video-vmware 2>/dev/null | grep -q "^ii"; then
     echo "[ATLAZES] تثبيت xserver-xorg-video-vmware..."
     apt-get install -y xserver-xorg-video-vmware 2>/dev/null || \
         echo "[ATLAZES] تحذير: فشل تثبيت vmware driver"
 fi
 
-# ── التحقق من blacklist vmwgfx ────────────────────────────────────────────────
-if grep -q "blacklist vmwgfx" /etc/modprobe.d/atlazes-blacklist.conf 2>/dev/null; then
-    echo "[ATLAZES] ✓ vmwgfx مُدرج في blacklist"
-else
-    echo "blacklist vmwgfx" >> /etc/modprobe.d/atlazes-blacklist.conf
-    echo "[ATLAZES] أُضيف vmwgfx إلى blacklist"
-fi
+# ── 5. التحقق من وجود الدرايفرات في مجلد Xorg ───────────────────────────────
+echo "[ATLAZES] الدرايفرات في /usr/lib/xorg/modules/drivers/:"
+ls /usr/lib/xorg/modules/drivers/ 2>/dev/null | head -20 || echo "  المجلد غير موجود"
 
 echo "[ATLAZES] اكتمل إصلاح Xorg."

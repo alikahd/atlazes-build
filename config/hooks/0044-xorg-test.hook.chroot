@@ -55,6 +55,18 @@ SCRIPT
 
 chmod +x /usr/local/bin/atlazes-xorg-check
 
+# ── إنشاء xorg.conf fallback لـ fbdev ────────────────────────────────────────
+# يُستخدم كـ fallback إذا فشل الكشف التلقائي
+cat > /etc/X11/xorg.conf.d/99-atlazes-fallback.conf << 'EOF'
+# ATLAZES OS - Xorg fbdev fallback configuration
+# يُستخدم فقط إذا فشل الكشف التلقائي
+
+Section "Device"
+    Identifier  "Fallback fbdev"
+    Driver      "fbdev"
+EndSection
+EOF
+
 # ── إنشاء systemd service للتشخيص ────────────────────────────────────────────
 cat > /etc/systemd/system/atlazes-xorg-check.service << 'EOF'
 [Unit]

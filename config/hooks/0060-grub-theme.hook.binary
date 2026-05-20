@@ -44,7 +44,9 @@ menuentry "ATLAZES OS - Live (Safe Mode)" --class atlazes --class gnu-linux --cl
             apparmor=1 security=apparmor \
             net.ifnames=0 biosdevname=0 \
             noeject \
-            noprompt
+            noprompt \
+            username=atlazes \
+            autologin
     initrd  /live/initrd.img
 }
 
@@ -63,7 +65,9 @@ menuentry "ATLAZES OS - Live Session (Full)" --class atlazes {
             tsx=off mds=full \
             net.ifnames=0 biosdevname=0 \
             noeject \
-            noprompt
+            noprompt \
+            username=atlazes \
+            autologin
     initrd  /live/initrd.img
 }
 
@@ -79,7 +83,9 @@ menuentry "ATLAZES OS - Install" --class atlazes {
             apparmor=1 security=apparmor \
             net.ifnames=0 biosdevname=0 \
             noeject \
-            noprompt
+            noprompt \
+            username=atlazes \
+            autologin
     initrd  /live/initrd.img
 }
 
@@ -96,7 +102,9 @@ menuentry "ATLAZES OS - Forensic Mode" --class atlazes {
             noswap nopersist \
             net.ifnames=0 biosdevname=0 \
             noeject \
-            noprompt
+            noprompt \
+            username=atlazes \
+            autologin
     initrd  /live/initrd.img
 }
 
@@ -127,17 +135,17 @@ MENU TITLE ATLAZES OS
 LABEL safe
     MENU LABEL ATLAZES OS - Live (Safe Mode)
     KERNEL /live/vmlinuz
-    APPEND initrd=/live/initrd.img boot=live components nomodeset vga=791 apparmor=1 security=apparmor net.ifnames=0 biosdevname=0 noeject noprompt
+    APPEND initrd=/live/initrd.img boot=live components nomodeset vga=791 apparmor=1 security=apparmor net.ifnames=0 biosdevname=0 noeject noprompt username=atlazes autologin
 
 LABEL live
     MENU LABEL ATLAZES OS - Live Session (Full)
     KERNEL /live/vmlinuz
-    APPEND initrd=/live/initrd.img boot=live components apparmor=1 security=apparmor net.ifnames=0 biosdevname=0 noeject noprompt
+    APPEND initrd=/live/initrd.img boot=live components apparmor=1 security=apparmor net.ifnames=0 biosdevname=0 noeject noprompt username=atlazes autologin
 
 LABEL install
     MENU LABEL Install ATLAZES OS
     KERNEL /live/vmlinuz
-    APPEND initrd=/live/initrd.img boot=live components nomodeset vga=791 apparmor=1 security=apparmor net.ifnames=0 biosdevname=0 noeject noprompt
+    APPEND initrd=/live/initrd.img boot=live components nomodeset vga=791 apparmor=1 security=apparmor net.ifnames=0 biosdevname=0 noeject noprompt username=atlazes autologin
 
 LABEL hd
     MENU LABEL Boot from Hard Drive

@@ -14,8 +14,12 @@ LIVE_USER="atlazes"
 USER_HOME="/home/${LIVE_USER}"
 
 # ── 1. إعداد LightDM بشكل بسيط جداً ─────────────────────────────────────────
-# نُبقي LightDM لكن نجعله يعمل بأبسط إعداد ممكن
-cat > /etc/lightdm/lightdm.conf << 'EOF'
+# نضع الإعداد في lightdm.conf.d/ لتجنب التعارض مع live-config
+# live-config يُنشئ /etc/lightdm/lightdm.conf.d/live-config.conf
+# إعدادنا يُكمّل إعداد live-config
+mkdir -p /etc/lightdm/lightdm.conf.d
+
+cat > /etc/lightdm/lightdm.conf.d/10-atlazes.conf << 'EOF'
 [LightDM]
 logind-check-graphical=false
 
@@ -38,17 +42,22 @@ EOF
 # ── 2. إعداد startx كـ fallback تلقائي ───────────────────────────────────────
 # إذا فشل LightDM، يُقلع النظام إلى tty1
 # ويُشغّل startx تلقائياً من .bash_profile
-cat > "${USER_HOME}/.bash_profile" << 'EOF'
-# ATLAZES OS - Auto-start X if on tty1 and no display
+# نضعه في /etc/skel/ أيضاً لأن live-config قد يُنشئ المستخدم بعد الـ hooks
+BASH_PROFILE_CONTENT='# ATLAZES OS - Auto-start X if on tty1 and no display
 if [[ -z "${DISPLAY}" ]] && [[ "$(tty)" == "/dev/tty1" ]]; then
     echo "Starting XFCE4 via startx..."
     exec startx -- -nolisten tcp 2>/tmp/startx.log
 fi
-EOF
+'
+
+echo "$BASH_PROFILE_CONTENT" > "${USER_HOME}/.bash_profile"
+
+# نسخ إلى /etc/skel/ لأن live-config قد يُنشئ المستخدم بعد الـ hooks
+mkdir -p /etc/skel
+echo "$BASH_PROFILE_CONTENT" > /etc/skel/.bash_profile
 
 # ── 3. إعداد .xinitrc لتشغيل XFCE4 ──────────────────────────────────────────
-cat > "${USER_HOME}/.xinitrc" << 'EOF'
-#!/bin/bash
+XINITRC_CONTENT='#!/bin/bash
 # ATLAZES OS - X11 session startup
 
 # تعطيل screen saver
@@ -59,8 +68,14 @@ xset s noblank 2>/dev/null || true
 # تشغيل XFCE4
 unset DBUS_SESSION_BUS_ADDRESS
 exec startxfce4
-EOF
+'
+
+echo "$XINITRC_CONTENT" > "${USER_HOME}/.xinitrc"
 chmod +x "${USER_HOME}/.xinitrc"
+
+# نسخ إلى /etc/skel/ أيضاً
+echo "$XINITRC_CONTENT" > /etc/skel/.xinitrc
+chmod +x /etc/skel/.xinitrc
 
 # ── 4. تعطيل picom ────────────────────────────────────────────────────────────
 mkdir -p /etc/xdg/autostart
@@ -95,5 +110,9 @@ chown -R "${LIVE_USER}:${LIVE_USER}" \
     "${USER_HOME}/.bash_profile" \
     "${USER_HOME}/.xinitrc" \
     "${USER_HOME}/.config" 2>/dev/null || true
+
+# التأكد من صلاحيات /etc/skel
+chmod 644 /etc/skel/.bash_profile 2>/dev/null || true
+chmod 755 /etc/skel/.xinitrc 2>/dev/null || true
 
 echo "[ATLAZES] اكتمل إعداد نظام العرض."

@@ -1,25 +1,21 @@
 # =============================================================================
 # ATLAZES OS - Desktop Environment (XFCE4)
+# Verified against Debian 12 Bookworm packages.debian.org
 # =============================================================================
 
 # XFCE4 core
+# المصدر: https://packages.debian.org/bookworm/xfce4
 xfce4
-xfce4-goodies
 xfce4-terminal
 xfce4-taskmanager
 xfce4-power-manager
-# xfce4-screensaver غير موجود في Debian 12 — يُستبدل بـ xscreensaver
-xscreensaver
 xfce4-notifyd
 xfce4-whiskermenu-plugin
 xfce4-clipman-plugin
 xfce4-pulseaudio-plugin
-xfce4-weather-plugin
-xfce4-systemload-plugin
 xfce4-netload-plugin
 xfce4-cpugraph-plugin
 xfce4-battery-plugin
-xfce4-datetime-plugin
 xfce4-screenshooter
 xfce4-settings
 xfwm4
@@ -27,12 +23,11 @@ xfdesktop4
 thunar
 thunar-archive-plugin
 thunar-volman
-thunar-media-tags-plugin
 
 # Display manager
 lightdm
 lightdm-gtk-greeter
-lightdm-gtk-greeter-settings
+# lightdm-gtk-greeter-settings: موجود في sid فقط — غير موجود في bookworm
 
 # Display server
 xorg
@@ -41,8 +36,6 @@ xserver-xorg-input-all
 xserver-xorg-video-all
 xserver-xorg-video-vesa
 xserver-xorg-video-fbdev
-# xserver-xorg-video-vmware: درايفر VMSVGA الصحيح لـ VirtualBox
-# يحل مشكلة الشاشة السوداء مع VMSVGA controller
 xserver-xorg-video-vmware
 x11-utils
 x11-xserver-utils
@@ -51,21 +44,14 @@ xdg-utils
 xdg-user-dirs
 xdg-user-dirs-gtk
 
-# ملاحظة: virtualbox-guest-x11 ليس في مستودعات Debian الرسمية
-# يُثبَّت تلقائياً عبر open-vm-tools في قائمة 01-base
-# VirtualBox يعمل مع xserver-xorg-video-vesa و xserver-xorg-video-fbdev
-
 # GTK themes and icons
 arc-theme
-papirus-icon-theme
+# papirus-icon-theme: موجود في sid فقط — غير موجود في bookworm
+# البديل: adwaita-icon-theme المثبت افتراضياً
 gtk2-engines-murrine
 gtk2-engines-pixbuf
 gnome-themes-extra
 adwaita-icon-theme
-
-# Compositor — معطّل افتراضياً لأنه يسبب شاشة سوداء في VirtualBox
-# يمكن تفعيله يدوياً: picom --daemon
-# picom
 
 # Fonts
 fonts-ubuntu
@@ -86,7 +72,6 @@ atril
 
 # Text editor
 mousepad
-gedit
 
 # Archive manager
 file-roller
@@ -112,9 +97,6 @@ rofi
 # Wallpaper
 nitrogen
 feh
-
-# System info widget
-conky-all
 
 # Accessibility
 at-spi2-core

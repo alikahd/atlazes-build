@@ -10,6 +10,14 @@ DONE_FILE="/var/lib/atlazes/.firstboot-done"
 
 echo "[ATLAZES] First boot setup..."
 
+# تعيين كلمة مرور المستخدم الحي (fallback إذا لم يعمل live-config)
+# live-config يُنشئ المستخدم أثناء الإقلاع — نتأكد من كلمة المرور هنا
+if id "atlazes" &>/dev/null; then
+    echo "atlazes:atlazes" | chpasswd 2>/dev/null || true
+    echo "root:atlazes" | chpasswd 2>/dev/null || true
+    echo "[ATLAZES] Passwords set for atlazes and root."
+fi
+
 # تفعيل UFW الآن بعد أن يكون النظام جاهزاً
 if command -v ufw &>/dev/null; then
     ufw --force enable 2>/dev/null || true
