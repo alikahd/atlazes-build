@@ -2,11 +2,8 @@ name: Build ATLAZES OS ISO
 
 on:
   push:
-    branches: [ main, master ]
     tags:
       - 'v*'
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
     inputs:
       edition:
@@ -18,12 +15,28 @@ on:
           - core
           - dev
           - security
+      create_release:
+        description: 'Create GitHub Release after build?'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      release_tag:
+        description: 'Release tag (e.g. v1.0.0-beta.1) — required if creating release'
+        required: false
+        default: 'v1.0.0-beta.1'
 
 jobs:
   build:
     name: Build ${{ github.event.inputs.edition || 'core' }} edition
     runs-on: ubuntu-22.04
     timeout-minutes: 120
+
+    # صلاحيات كتابة الـ releases
+    permissions:
+      contents: write
 
     steps:
       # ── 1. Checkout ──────────────────────────────────────────────────────────
@@ -63,16 +76,10 @@ jobs:
             gnupg2 dpkg-dev
 
       # ── 4. إصلاح مفاتيح Debian GPG ───────────────────────────────────────────
-      # Ubuntu 22.04 لا تحتوي على مفتاح Debian bookworm (F8D2585B8783D481)
-      # هذا يسبب فشل debootstrap بخطأ "Release signed by unknown key"
       - name: Fix Debian GPG keyring
         run: |
           echo "=== Installing debian-archive-keyring from Debian ==="
-
-          # تحميل حزمة debian-archive-keyring مباشرة من Debian
           KEYRING_URL="http://deb.debian.org/debian/pool/main/d/debian-archive-keyring"
-
-          # البحث عن أحدث نسخة
           KEYRING_DEB=$(curl -fsSL "${KEYRING_URL}/" 2>/dev/null | \
             grep -oP 'debian-archive-keyring_[0-9.]+_all\.deb' | \
             sort -V | tail -1 || echo "")
@@ -82,61 +89,36 @@ jobs:
             curl -fsSL "${KEYRING_URL}/${KEYRING_DEB}" -o "/tmp/${KEYRING_DEB}"
             sudo dpkg -i "/tmp/${KEYRING_DEB}"
             rm -f "/tmp/${KEYRING_DEB}"
-            echo "debian-archive-keyring installed successfully"
           else
-            echo "Package listing failed, downloading keys directly..."
-
-            # تحميل مفاتيح Debian مباشرة من ftp-master.debian.org
             sudo mkdir -p /usr/share/keyrings
-
             for KEY_URL in \
               "https://ftp-master.debian.org/keys/release-12.asc" \
               "https://ftp-master.debian.org/keys/archive-key-12.asc" \
               "https://ftp-master.debian.org/keys/archive-key-12-security.asc"; do
-              echo "Fetching: ${KEY_URL}"
               curl -fsSL "${KEY_URL}" 2>/dev/null | \
                 sudo gpg --dearmor \
                 >> /usr/share/keyrings/debian-archive-keyring.gpg || true
             done
           fi
 
-          # إضافة المفتاح المفقود مباشرة عبر keyserver
-          echo "Adding missing key F8D2585B8783D481..."
           sudo gpg --no-default-keyring \
             --keyring /usr/share/keyrings/debian-archive-keyring.gpg \
             --keyserver hkps://keyserver.ubuntu.com \
-            --recv-keys F8D2585B8783D481 2>/dev/null || \
-          sudo gpg --no-default-keyring \
-            --keyring /usr/share/keyrings/debian-archive-keyring.gpg \
-            --keyserver hkps://keys.openpgp.org \
             --recv-keys F8D2585B8783D481 2>/dev/null || true
 
-          echo "=== Keyring contents ==="
-          gpg --no-default-keyring \
-            --keyring /usr/share/keyrings/debian-archive-keyring.gpg \
-            --list-keys 2>/dev/null | grep -E "^pub|uid" | head -20 || true
-
       # ── 5. تثبيت live-build الحديث من Debian ─────────────────────────────────
-      # نسخة Ubuntu 22.04 هي 20190311 — لا تدعم --bootloaders و --uefi-secure-boot
       - name: Install modern live-build from Debian
         run: |
-          echo "=== Current live-build ==="
-          dpkg -l live-build 2>/dev/null | grep "^ii" || echo "not installed"
-
           DEBIAN_LB_URL="http://deb.debian.org/debian/pool/main/l/live-build"
-
-          # البحث عن أحدث نسخة
           LB_DEB=$(curl -fsSL "${DEBIAN_LB_URL}/" 2>/dev/null | \
             grep -oP 'live-build_[0-9]+_all\.deb' | \
             sort -V | tail -1 || echo "")
 
           if [[ -n "$LB_DEB" ]]; then
-            echo "Downloading: ${LB_DEB}"
             curl -fsSL "${DEBIAN_LB_URL}/${LB_DEB}" -o "/tmp/${LB_DEB}"
             sudo dpkg -i "/tmp/${LB_DEB}" || sudo apt-get install -f -y
             rm -f "/tmp/${LB_DEB}"
           else
-            # محاولة نسخ محددة
             for VER in "20230131" "20221020" "20210208"; do
               DEB_FILE="live-build_${VER}_all.deb"
               if curl -fsSL --max-time 30 \
@@ -144,29 +126,17 @@ jobs:
                 -o "/tmp/${DEB_FILE}" 2>/dev/null; then
                 sudo dpkg -i "/tmp/${DEB_FILE}" || sudo apt-get install -f -y
                 rm -f "/tmp/${DEB_FILE}"
-                echo "Installed live-build ${VER}"
                 break
               fi
             done
           fi
-
-          echo "=== Installed live-build ==="
-          lb --version
+          echo "=== live-build version ===" && lb --version
 
       # ── 6. التحقق من البيئة ───────────────────────────────────────────────────
       - name: Verify build environment
         run: |
-          echo "=== live-build version ==="
           lb --version
-
-          echo "=== Supported lb config options ==="
-          lb config --help 2>&1 | grep -E "bootloaders|uefi|updates" || \
-            echo "Some options may not be supported in this version"
-
-          echo "=== debootstrap version ==="
           debootstrap --version
-
-          echo "=== Disk space ==="
           df -h
 
       # ── 7. بناء الـ ISO ───────────────────────────────────────────────────────
@@ -182,14 +152,11 @@ jobs:
       - name: Show build results
         if: always()
         run: |
-          echo "=== Output files ==="
-          ls -lh output/ 2>/dev/null || echo "No output directory"
-          echo "=== Disk usage ==="
+          ls -lh output/ 2>/dev/null || echo "No output"
           df -h
-          echo "=== Last 100 lines of build log ==="
-          tail -100 build/build-*.log 2>/dev/null || echo "No build log"
+          tail -50 build/build-*.log 2>/dev/null || true
 
-      # ── 9. رفع الـ ISO كـ artifact ────────────────────────────────────────────
+      # ── 9. رفع الـ ISO كـ artifact (دائماً عند النجاح) ───────────────────────
       - name: Upload ISO artifact
         if: success()
         uses: actions/upload-artifact@v4
@@ -199,7 +166,7 @@ jobs:
             output/*.iso
             output/*.sha256
             output/*.md5
-          retention-days: 7
+          retention-days: 30
 
       # ── 10. رفع سجل البناء عند الفشل ─────────────────────────────────────────
       - name: Upload build log on failure
@@ -208,22 +175,34 @@ jobs:
         with:
           name: build-log-failure
           path: build/build-*.log
-          retention-days: 3
+          retention-days: 7
 
-      # ── 11. إنشاء GitHub Release عند الـ tag ──────────────────────────────────
+      # ── 11. إنشاء GitHub Release ──────────────────────────────────────────────
+      # يعمل في حالتين:
+      #   أ) push لـ tag يبدأ بـ v (مثل: git tag v1.0.0-beta.1 && git push --tags)
+      #   ب) workflow_dispatch مع اختيار create_release = true
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') && success()
-        uses: softprops/action-gh-release@v1
+        if: >
+          success() && (
+            startsWith(github.ref, 'refs/tags/v') ||
+            github.event.inputs.create_release == 'true'
+          )
+        uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.event.inputs.release_tag }}
+          name: "ATLAZES OS ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.event.inputs.release_tag }}"
           files: |
             output/*.iso
             output/*.sha256
             output/*.md5
           body: |
-            ## ATLAZES OS ${{ github.ref_name }}
+            ## ATLAZES OS ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.event.inputs.release_tag }}
 
-            **Edition:** ${{ github.event.inputs.edition || 'core' }}
-            **Base:** Debian 12 (Bookworm)
+            **الإصدار:** ${{ github.event.inputs.edition || 'core' }}
+            **القاعدة:** Debian 12 (Bookworm)
+            **تاريخ البناء:** ${{ github.run_id }}
+
+            ---
 
             ### التحقق من التحميل
             ```bash
@@ -234,7 +213,11 @@ jobs:
             ```bash
             sudo dd if=atlazes-os-*.iso of=/dev/sdX bs=4M status=progress oflag=sync
             ```
+
+            ### ⚠️ Public Beta
+            هذا إصدار تجريبي. راجع [BETA.md](https://github.com/${{ github.repository }}/blob/main/BETA.md) للتفاصيل.
           draft: false
-          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          prerelease: ${{ contains(github.event.inputs.release_tag, 'beta') || contains(github.event.inputs.release_tag, 'rc') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
