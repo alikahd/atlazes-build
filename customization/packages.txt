@@ -1,0 +1,93 @@
+# =============================================================================
+# ATLAZES OS - Additional Packages
+# Base: Debian 13 (Trixie) Live XFCE — already includes desktop + base system
+# These are EXTRA packages added on top of the official ISO
+# =============================================================================
+
+# ── Firewall ──────────────────────────────────────────────────────────────────
+ufw
+gufw
+
+# ── Mandatory Access Control ──────────────────────────────────────────────────
+apparmor
+apparmor-utils
+apparmor-profiles
+
+# ── Application Sandboxing ────────────────────────────────────────────────────
+firejail
+
+# ── Antivirus ─────────────────────────────────────────────────────────────────
+clamav
+clamav-daemon
+clamtk
+
+# ── Rootkit Detection ─────────────────────────────────────────────────────────
+rkhunter
+chkrootkit
+
+# ── System Auditing ───────────────────────────────────────────────────────────
+lynis
+auditd
+
+# ── Intrusion Detection ───────────────────────────────────────────────────────
+aide
+aide-common
+
+# ── Password Manager ──────────────────────────────────────────────────────────
+keepassxc
+
+# ── Disk Encryption ───────────────────────────────────────────────────────────
+cryptsetup
+
+# ── Secure Deletion ───────────────────────────────────────────────────────────
+wipe
+bleachbit
+
+# ── Metadata Cleaning ─────────────────────────────────────────────────────────
+mat2
+libimage-exiftool-perl
+
+# ── Network Security ──────────────────────────────────────────────────────────
+fail2ban
+nftables
+
+# ── GPG & Encryption ──────────────────────────────────────────────────────────
+gnupg2
+seahorse
+
+# ── VPN ───────────────────────────────────────────────────────────────────────
+wireguard
+wireguard-tools
+openvpn
+network-manager-openvpn
+network-manager-openvpn-gnome
+
+# ── Tor & Anonymization ───────────────────────────────────────────────────────
+tor
+torsocks
+torbrowser-launcher
+
+# ── Privacy Tools ─────────────────────────────────────────────────────────────
+macchanger
+proxychains4
+privoxy
+
+# ── Secure Email ──────────────────────────────────────────────────────────────
+thunderbird
+
+# ── Password Generation ───────────────────────────────────────────────────────
+pwgen
+
+# ── Unattended Security Updates ───────────────────────────────────────────────
+unattended-upgrades
+apt-listchanges
+
+# ── Calamares Installer ───────────────────────────────────────────────────────
+calamares
+python3-yaml
+python3-jsonschema
+
+# ── Misc Security ─────────────────────────────────────────────────────────────
+gnome-keyring
+ca-certificates
+openssl

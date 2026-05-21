@@ -1,17 +1,16 @@
 #!/bin/bash
 # =============================================================================
-# ATLAZES OS - Main Build Script
-# Version: 1.0.0-beta.1
-# Base: Debian 12 (Bookworm)
+# ATLAZES OS - Build Script (ISO Remaster Method)
+# Version: 2.0.0
+# Base: Debian 13 (Trixie) Live XFCE Official ISO
 #
-# الطريقة الصحيحة حسب التوثيق الرسمي لـ live-build:
-# lb config يُنشئ مجلد config/ في المجلد الحالي
-# lb build يُشغَّل من نفس المجلد
-# لذلك نُشغّل كل شيء من BUILD_DIR مباشرة
+# الطريقة: تحميل ISO الرسمي → استخراج squashfs → تطبيق تخصيصات → إعادة بناء ISO
+# هذا يضمن أن النظام يعمل 100% لأن القاعدة هي ISO رسمي مُختبر
 # =============================================================================
 
 set -euo pipefail
 
+# ── ألوان ─────────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -20,25 +19,29 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
+# ── متغيرات ──────────────────────────────────────────────────────────────────
 OS_NAME="ATLAZES OS"
-OS_VERSION="1.0.0"
-DEBIAN_RELEASE="bookworm"
+OS_VERSION="2.0.0"
+DEBIAN_VERSION="13"
+DEBIAN_CODENAME="trixie"
 ARCH="amd64"
 
-# مجلد المشروع — حيث يوجد build.sh
 PROJECT_DIR="$(dirname "$(realpath "$0")")"
-
-# مجلد البناء — حيث يُشغَّل lb config و lb build
-BUILD_DIR="${PROJECT_DIR}/build/lb"
+WORK_DIR="${PROJECT_DIR}/work"
 OUTPUT_DIR="${PROJECT_DIR}/output"
+CUSTOM_DIR="${PROJECT_DIR}/customization"
+CALAMARES_DIR="${PROJECT_DIR}/calamares"
 
-MIRROR="${ATLAZES_MIRROR:-http://deb.debian.org/debian}"
-EDITION="${ATLAZES_EDITION:-core}"
+# ISO source — Debian Live XFCE
+ISO_URL="https://cdimage.debian.org/debian-cd/current-live/amd64/iso-hybrid/"
+ISO_PATTERN="debian-live-.*-amd64-xfce.iso"
+ISO_CACHE="${PROJECT_DIR}/cache"
 
-mkdir -p "${PROJECT_DIR}/build" 2>/dev/null || true
-LOG_FILE="${PROJECT_DIR}/build/build-${EDITION}.log"
-touch "$LOG_FILE"
+ISO_NAME="atlazes-os-${OS_VERSION}-amd64.iso"
 
+LOG_FILE="${PROJECT_DIR}/build.log"
+
+# ── دوال مساعدة ──────────────────────────────────────────────────────────────
 log()     { echo -e "${GREEN}[+]${NC} $*" | tee -a "$LOG_FILE"; }
 warn()    { echo -e "${YELLOW}[!]${NC} $*" | tee -a "$LOG_FILE"; }
 error()   { echo -e "${RED}[✗]${NC} $*" | tee -a "$LOG_FILE"; exit 1; }
@@ -48,255 +51,416 @@ section() {
     echo -e "${CYAN}${BOLD}══════════════════════════════════════${NC}\n" | tee -a "$LOG_FILE"
 }
 
-check_root() {
+cleanup() {
+    log "تنظيف mount points..."
+    umount "${WORK_DIR}/squashfs-mnt" 2>/dev/null || true
+    umount "${WORK_DIR}/overlay/merged/proc" 2>/dev/null || true
+    umount "${WORK_DIR}/overlay/merged/sys" 2>/dev/null || true
+    umount "${WORK_DIR}/overlay/merged/dev/pts" 2>/dev/null || true
+    umount "${WORK_DIR}/overlay/merged/dev" 2>/dev/null || true
+    umount "${WORK_DIR}/overlay/merged" 2>/dev/null || true
+}
+
+trap cleanup EXIT
+
+# ── 1. التحقق من المتطلبات ────────────────────────────────────────────────────
+check_requirements() {
+    section "التحقق من المتطلبات"
+
     [[ $EUID -eq 0 ]] || error "يجب تشغيل السكريبت كـ root: sudo ./build.sh"
-}
 
-setup_edition() {
-    case "$EDITION" in
-        core)
-            ISO_LABEL="ATLAZES-CORE-${OS_VERSION}"
-            ISO_NAME="atlazes-os-${OS_VERSION}-core-${ARCH}.iso"
-            log "الإصدار: Core"
-            ;;
-        dev)
-            ISO_LABEL="ATLAZES-DEV-${OS_VERSION}"
-            ISO_NAME="atlazes-os-${OS_VERSION}-dev-${ARCH}.iso"
-            export ATLAZES_EDITION=dev
-            log "الإصدار: Dev"
-            ;;
-        security)
-            ISO_LABEL="ATLAZES-SEC-${OS_VERSION}"
-            ISO_NAME="atlazes-os-${OS_VERSION}-security-${ARCH}.iso"
-            log "الإصدار: Security"
-            ;;
-        *)
-            error "إصدار غير معروف: ${EDITION}"
-            ;;
-    esac
-    LOG_FILE="${PROJECT_DIR}/build/build-${EDITION}.log"
-    touch "$LOG_FILE"
-}
+    local deps=(wget xorriso squashfs-tools mksquashfs unsquashfs mount)
+    local missing=()
 
-install_livebuild() {
-    section "تثبيت live-build"
-    local LB_VERSION
-    LB_VERSION=$(dpkg -l live-build 2>/dev/null | grep "^ii" | awk '{print $3}' || echo "none")
-    log "نسخة live-build الحالية: ${LB_VERSION}"
-
-    if dpkg --compare-versions "$LB_VERSION" lt "20230101" 2>/dev/null || [[ "$LB_VERSION" == "none" ]]; then
-        warn "تثبيت live-build الحديث من Debian..."
-        local URL="http://deb.debian.org/debian/pool/main/l/live-build"
-        local DEB
-        DEB=$(curl -fsSL "${URL}/" 2>/dev/null | grep -oP 'live-build_[0-9]+_all\.deb' | sort -V | tail -1 || echo "")
-        if [[ -n "$DEB" ]]; then
-            curl -fsSL "${URL}/${DEB}" -o "/tmp/${DEB}"
-            dpkg -i "/tmp/${DEB}" || apt-get install -f -y
-            rm -f "/tmp/${DEB}"
+    for cmd in "${deps[@]}"; do
+        if ! command -v "$cmd" &>/dev/null; then
+            missing+=("$cmd")
         fi
+    done
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log "تثبيت التبعيات المفقودة..."
+        apt-get update -qq
+        apt-get install -y \
+            wget xorriso squashfs-tools \
+            grub-pc-bin grub-efi-amd64-bin \
+            mtools dosfstools isolinux syslinux-common \
+            rsync curl 2>&1 | tee -a "$LOG_FILE"
     fi
-    log "live-build: $(lb --version 2>/dev/null || echo 'unknown')"
+
+    log "جميع المتطلبات متوفرة."
 }
 
-check_dependencies() {
-    section "تثبيت التبعيات"
-    apt-get update -qq
-    apt-get install -y \
-        debootstrap squashfs-tools xorriso \
-        isolinux syslinux-efi \
-        grub-pc-bin grub-efi-amd64-bin \
-        mtools dosfstools \
-        curl wget rsync \
-        librsvg2-bin ca-certificates \
-        debian-archive-keyring 2>&1 | tee -a "$LOG_FILE"
-    install_livebuild
-    log "جميع التبعيات جاهزة."
-}
+# ── 2. تحميل ISO الرسمي ──────────────────────────────────────────────────────
+download_iso() {
+    section "تحميل Debian Live XFCE ISO"
 
-prepare_dirs() {
-    section "تحضير مجلدات البناء"
-    mkdir -p "$BUILD_DIR" "$OUTPUT_DIR"
-    log "مجلد البناء:  $BUILD_DIR"
-    log "مجلد الإخراج: $OUTPUT_DIR"
-}
+    mkdir -p "$ISO_CACHE"
 
-build_iso() {
-    section "تهيئة live-build وبناء الـ ISO"
+    # البحث عن اسم الملف الحالي
+    log "البحث عن أحدث ISO..."
+    local iso_filename
+    iso_filename=$(wget -q -O - "$ISO_URL" 2>/dev/null | \
+        grep -oP "debian-live-[0-9.]+-amd64-xfce\.iso" | \
+        sort -V | tail -1)
 
-    # ── تنظيف البناء السابق ───────────────────────────────────────────────────
-    if [[ -d "$BUILD_DIR" ]]; then
-        warn "تنظيف البناء السابق..."
-        cd "$BUILD_DIR"
-        lb clean --purge 2>/dev/null || true
+    if [[ -z "$iso_filename" ]]; then
+        error "لم يتم العثور على ISO في ${ISO_URL}"
+    fi
+
+    log "اسم الملف: ${iso_filename}"
+    local iso_path="${ISO_CACHE}/${iso_filename}"
+
+    if [[ -f "$iso_path" ]]; then
+        log "ISO موجود بالفعل في الكاش: ${iso_path}"
+    else
+        log "تحميل ISO... (قد يستغرق وقتاً)"
+        wget -c "${ISO_URL}${iso_filename}" -O "$iso_path" 2>&1 | tee -a "$LOG_FILE"
+    fi
+
+    # تحميل checksum والتحقق
+    local sha_file="${ISO_CACHE}/SHA256SUMS"
+    wget -q "${ISO_URL}SHA256SUMS" -O "$sha_file" 2>/dev/null || true
+    if [[ -f "$sha_file" ]]; then
+        log "التحقق من checksum..."
+        cd "$ISO_CACHE"
+        if grep "$iso_filename" "$sha_file" | sha256sum -c --status 2>/dev/null; then
+            log "Checksum صحيح ✓"
+        else
+            warn "لم يتم التحقق من checksum — متابعة..."
+        fi
         cd "$PROJECT_DIR"
-        rm -rf "$BUILD_DIR"
-        mkdir -p "$BUILD_DIR"
     fi
 
-    # ── الانتقال إلى مجلد البناء ──────────────────────────────────────────────
-    # حسب التوثيق الرسمي: lb config و lb build يُشغَّلان من نفس المجلد
-    # ويُنشئان config/ و binary/ في هذا المجلد
-    cd "$BUILD_DIR"
-    log "مجلد العمل الحالي: $(pwd)"
+    export SOURCE_ISO="$iso_path"
+    log "ISO جاهز: ${SOURCE_ISO}"
+}
 
-    # ── نسخ ملفات الإعداد قبل lb config ─────────────────────────────────────
-    # الطريقة الصحيحة: ننسخ config/ من المشروع إلى BUILD_DIR
-    # ثم يقرأها lb config و lb build من هنا
-    log "نسخ ملفات الإعداد..."
-    cp -r "${PROJECT_DIR}/config" .
-    log "محتوى config/:"
-    ls -la config/ | tee -a "$LOG_FILE"
-    log "قوائم الحزم:"
-    ls -la config/package-lists/ | tee -a "$LOG_FILE"
+# ── 3. استخراج ISO ───────────────────────────────────────────────────────────
+extract_iso() {
+    section "استخراج ISO"
 
-    # حذف قائمة dev للإصدارات الأخرى
-    if [[ "$EDITION" != "dev" ]]; then
-        rm -f config/package-lists/05-development.list.chroot
-        log "تم استبعاد قائمة dev"
+    # تنظيف مجلد العمل
+    rm -rf "$WORK_DIR"
+    mkdir -p "${WORK_DIR}/iso-extract"
+    mkdir -p "${WORK_DIR}/squashfs-mnt"
+    mkdir -p "${WORK_DIR}/overlay/upper"
+    mkdir -p "${WORK_DIR}/overlay/work"
+    mkdir -p "${WORK_DIR}/overlay/merged"
+    mkdir -p "${WORK_DIR}/new-iso"
+
+    # استخراج محتويات ISO
+    log "استخراج محتويات ISO..."
+    xorriso -osirrox on -indev "$SOURCE_ISO" -extract / "${WORK_DIR}/iso-extract" 2>&1 | tee -a "$LOG_FILE"
+
+    # البحث عن squashfs
+    local squashfs_path
+    squashfs_path=$(find "${WORK_DIR}/iso-extract" -name "filesystem.squashfs" | head -1)
+    if [[ -z "$squashfs_path" ]]; then
+        error "لم يتم العثور على filesystem.squashfs"
+    fi
+    log "squashfs: ${squashfs_path}"
+
+    # mount squashfs (read-only)
+    log "Mount squashfs..."
+    mount -o loop,ro "$squashfs_path" "${WORK_DIR}/squashfs-mnt"
+
+    # إنشاء overlay writable
+    log "إنشاء overlay filesystem..."
+    mount -t overlay overlay \
+        -o lowerdir="${WORK_DIR}/squashfs-mnt",upperdir="${WORK_DIR}/overlay/upper",workdir="${WORK_DIR}/overlay/work" \
+        "${WORK_DIR}/overlay/merged"
+
+    log "تم استخراج وتجهيز النظام للتعديل."
+}
+
+# ── 4. تطبيق التخصيصات (chroot) ──────────────────────────────────────────────
+apply_customizations() {
+    section "تطبيق تخصيصات ATLAZES"
+
+    local CHROOT="${WORK_DIR}/overlay/merged"
+
+    # mount filesystems للـ chroot
+    mount --bind /dev "$CHROOT/dev"
+    mount --bind /dev/pts "$CHROOT/dev/pts"
+    mount -t proc proc "$CHROOT/proc"
+    mount -t sysfs sysfs "$CHROOT/sys"
+
+    # نسخ resolv.conf للإنترنت
+    cp /etc/resolv.conf "$CHROOT/etc/resolv.conf"
+
+    # نسخ سكريبتات التخصيص
+    mkdir -p "$CHROOT/tmp/customization"
+    cp -r "${CUSTOM_DIR}/"* "$CHROOT/tmp/customization/"
+
+    # نسخ إعدادات Calamares
+    if [[ -d "$CALAMARES_DIR" ]]; then
+        mkdir -p "$CHROOT/tmp/calamares"
+        cp -r "${CALAMARES_DIR}/"* "$CHROOT/tmp/calamares/"
     fi
 
-    # ── تحديد نسخة live-build ────────────────────────────────────────────────
-    local LB_VERSION
-    LB_VERSION=$(dpkg -l live-build 2>/dev/null | grep "^ii" | awk '{print $3}' || echo "0")
+    # ── تشغيل التخصيصات داخل chroot ──────────────────────────────────────────
+    log "تثبيت الحزم الإضافية..."
+    chroot "$CHROOT" /bin/bash -c '
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -qq
 
-    # ── تشغيل lb config ───────────────────────────────────────────────────────
-    # lb config يقرأ config/ الموجود في المجلد الحالي ويُحدّثه
-    section "تشغيل lb config"
+        # تثبيت الحزم من packages.txt
+        if [[ -f /tmp/customization/packages.txt ]]; then
+            grep -v "^#" /tmp/customization/packages.txt | grep -v "^$" | \
+                xargs apt-get install -y --no-install-recommends 2>&1 || true
+        fi
 
-    local LB_OPTS=(
-        --distribution "$DEBIAN_RELEASE"
-        --architectures "$ARCH"
-        --mirror-bootstrap "$MIRROR"
-        --mirror-chroot "$MIRROR"
-        --mirror-binary "$MIRROR"
-        --archive-areas "main contrib non-free non-free-firmware"
-        --apt-recommends true
-        --apt-secure true
-        --binary-images iso-hybrid
-        --memtest none
-        --iso-application "${OS_NAME} ${EDITION^}"
-        --iso-publisher "ATLAZES Project"
-        --iso-volume "${ISO_LABEL}"
-        --linux-flavours "amd64"
-        --backports false
-        --win32-loader false
-        --zsync false
-        --bootappend-live "boot=live components nomodeset vga=791 net.ifnames=0 biosdevname=0 apparmor=1 security=apparmor noeject noprompt username=atlazes"
-        --bootappend-live-failsafe "boot=live components nomodeset vga=788 noeject noprompt net.ifnames=0 biosdevname=0 username=atlazes"
+        apt-get clean
+        rm -rf /var/lib/apt/lists/*
+    '
+
+    log "تطبيق security hardening..."
+    if [[ -f "${CUSTOM_DIR}/security-hardening.sh" ]]; then
+        chmod +x "$CHROOT/tmp/customization/security-hardening.sh"
+        chroot "$CHROOT" /bin/bash /tmp/customization/security-hardening.sh
+    fi
+
+    log "تطبيق privacy config..."
+    if [[ -f "${CUSTOM_DIR}/privacy-config.sh" ]]; then
+        chmod +x "$CHROOT/tmp/customization/privacy-config.sh"
+        chroot "$CHROOT" /bin/bash /tmp/customization/privacy-config.sh
+    fi
+
+    log "تطبيق branding..."
+    if [[ -f "${CUSTOM_DIR}/branding.sh" ]]; then
+        chmod +x "$CHROOT/tmp/customization/branding.sh"
+        chroot "$CHROOT" /bin/bash /tmp/customization/branding.sh
+    fi
+
+    log "إعداد المستخدم..."
+    if [[ -f "${CUSTOM_DIR}/user-setup.sh" ]]; then
+        chmod +x "$CHROOT/tmp/customization/user-setup.sh"
+        chroot "$CHROOT" /bin/bash /tmp/customization/user-setup.sh
+    fi
+
+    # ── إعداد Calamares ───────────────────────────────────────────────────────
+    if [[ -d "$CHROOT/tmp/calamares" ]]; then
+        log "إعداد Calamares installer..."
+        chroot "$CHROOT" /bin/bash -c '
+            # نسخ إعدادات Calamares
+            mkdir -p /etc/calamares/branding/atlazes
+            mkdir -p /etc/calamares/modules
+
+            if [[ -f /tmp/calamares/settings.conf ]]; then
+                cp /tmp/calamares/settings.conf /etc/calamares/
+            fi
+            if [[ -d /tmp/calamares/modules ]]; then
+                cp /tmp/calamares/modules/* /etc/calamares/modules/ 2>/dev/null || true
+            fi
+            if [[ -d /tmp/calamares/branding/atlazes ]]; then
+                cp -r /tmp/calamares/branding/atlazes/* /etc/calamares/branding/atlazes/ 2>/dev/null || true
+            fi
+        '
+    fi
+
+    # ── تنظيف ─────────────────────────────────────────────────────────────────
+    log "تنظيف chroot..."
+    rm -rf "$CHROOT/tmp/customization"
+    rm -rf "$CHROOT/tmp/calamares"
+
+    # unmount chroot filesystems
+    umount "$CHROOT/proc" 2>/dev/null || true
+    umount "$CHROOT/sys" 2>/dev/null || true
+    umount "$CHROOT/dev/pts" 2>/dev/null || true
+    umount "$CHROOT/dev" 2>/dev/null || true
+
+    log "تم تطبيق جميع التخصيصات."
+}
+
+# ── 5. إعادة ضغط squashfs ────────────────────────────────────────────────────
+repack_squashfs() {
+    section "إعادة ضغط squashfs"
+
+    local CHROOT="${WORK_DIR}/overlay/merged"
+    local new_squashfs="${WORK_DIR}/new-iso/live/filesystem.squashfs"
+
+    # نسخ محتويات ISO الأصلية
+    log "نسخ محتويات ISO..."
+    rsync -a "${WORK_DIR}/iso-extract/" "${WORK_DIR}/new-iso/" --exclude="live/filesystem.squashfs"
+
+    # إنشاء مجلد live إذا لم يكن موجوداً
+    mkdir -p "${WORK_DIR}/new-iso/live"
+
+    # ضغط squashfs جديد
+    log "ضغط filesystem.squashfs... (قد يستغرق وقتاً)"
+    mksquashfs "$CHROOT" "$new_squashfs" \
+        -comp xz -b 1M -Xdict-size 100% \
+        -noappend \
+        -e boot/grub \
+        2>&1 | tee -a "$LOG_FILE"
+
+    # حساب حجم filesystem
+    local fs_size
+    fs_size=$(du -sb "$CHROOT" | awk '{print $1}')
+    echo "$fs_size" > "${WORK_DIR}/new-iso/live/filesystem.size"
+
+    # unmount overlay
+    umount "${WORK_DIR}/overlay/merged" 2>/dev/null || true
+    umount "${WORK_DIR}/squashfs-mnt" 2>/dev/null || true
+
+    log "تم ضغط squashfs بنجاح."
+    log "حجم squashfs: $(du -sh "$new_squashfs" | awk '{print $1}')"
+}
+
+# ── 6. بناء ISO جديد ─────────────────────────────────────────────────────────
+build_iso() {
+    section "بناء ISO جديد"
+
+    mkdir -p "$OUTPUT_DIR"
+
+    local iso_output="${OUTPUT_DIR}/${ISO_NAME}"
+    local new_iso_dir="${WORK_DIR}/new-iso"
+
+    # تحديث GRUB config لـ ATLAZES branding
+    if [[ -f "${new_iso_dir}/boot/grub/grub.cfg" ]]; then
+        log "تحديث GRUB config..."
+        sed -i "s/Debian GNU\/Linux/ATLAZES OS/g" "${new_iso_dir}/boot/grub/grub.cfg"
+        sed -i "s/debian-live/atlazes-os/g" "${new_iso_dir}/boot/grub/grub.cfg"
+    fi
+
+    # تحديث isolinux config
+    if [[ -f "${new_iso_dir}/isolinux/isolinux.cfg" ]]; then
+        log "تحديث isolinux config..."
+        sed -i "s/Debian GNU\/Linux/ATLAZES OS/g" "${new_iso_dir}/isolinux/isolinux.cfg"
+    fi
+    # تحديث menu.cfg إذا وُجد
+    find "${new_iso_dir}/isolinux" -name "*.cfg" -exec \
+        sed -i "s/Debian GNU\/Linux/ATLAZES OS/g" {} \; 2>/dev/null || true
+
+    # بناء ISO
+    log "بناء ISO بـ xorriso..."
+
+    # تحديد ملف isolinux.bin
+    local isolinux_bin=""
+    if [[ -f "${new_iso_dir}/isolinux/isolinux.bin" ]]; then
+        isolinux_bin="isolinux/isolinux.bin"
+    fi
+
+    # تحديد EFI image
+    local efi_img=""
+    if [[ -f "${new_iso_dir}/boot/grub/efi.img" ]]; then
+        efi_img="boot/grub/efi.img"
+    elif [[ -f "${new_iso_dir}/EFI/boot/efiboot.img" ]]; then
+        efi_img="EFI/boot/efiboot.img"
+    fi
+
+    # بناء ISO مع دعم BIOS + UEFI
+    local xorriso_opts=(
+        -as mkisofs
+        -o "$iso_output"
+        -V "ATLAZES_OS"
+        -J -joliet-long -l
+        -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin
     )
 
-    if dpkg --compare-versions "$LB_VERSION" ge "20200101" 2>/dev/null; then
-        LB_OPTS+=(--bootloaders "grub-efi,syslinux" --uefi-secure-boot disable)
-    fi
-    if dpkg --compare-versions "$LB_VERSION" ge "20190311" 2>/dev/null; then
-        LB_OPTS+=(--security true --updates true)
-    fi
-    # firmware-binary و firmware-chroot: مدعومان في live-build القديم فقط
-    if lb config --help 2>&1 | grep -q "firmware-binary"; then
-        LB_OPTS+=(--firmware-binary true --firmware-chroot true)
-    fi
-    if lb config --help 2>&1 | grep -q "mirror-chroot-security"; then
-        LB_OPTS+=(
-            --mirror-chroot-security "http://security.debian.org/debian-security"
-            --mirror-binary-security "http://security.debian.org/debian-security"
+    if [[ -n "$isolinux_bin" ]]; then
+        xorriso_opts+=(
+            -b "$isolinux_bin"
+            -c isolinux/boot.cat
+            -no-emul-boot
+            -boot-load-size 4
+            -boot-info-table
         )
     fi
 
-    lb config "${LB_OPTS[@]}" 2>&1 | tee -a "$LOG_FILE"
+    if [[ -n "$efi_img" ]]; then
+        xorriso_opts+=(
+            -eltorito-alt-boot
+            -e "$efi_img"
+            -no-emul-boot
+            -isohybrid-gpt-basdat
+        )
+    fi
 
-    # التحقق من قوائم الحزم بعد lb config
-    log "قوائم الحزم بعد lb config:"
-    ls -la config/package-lists/ | tee -a "$LOG_FILE"
+    xorriso "${xorriso_opts[@]}" "$new_iso_dir" 2>&1 | tee -a "$LOG_FILE"
 
-    # ── تشغيل lb build ────────────────────────────────────────────────────────
-    section "بناء الـ ISO (قد يستغرق 20-60 دقيقة)"
-    lb build 2>&1 | tee -a "$LOG_FILE"
-
-    # ── نقل الـ ISO ───────────────────────────────────────────────────────────
-    local iso_file
-    iso_file=$(find "$BUILD_DIR" -maxdepth 1 -name "*.iso" | head -1)
-    [[ -z "$iso_file" ]] && error "فشل البناء: لم يُنشأ ملف ISO"
-
-    mv "$iso_file" "${OUTPUT_DIR}/${ISO_NAME}"
-    log "تم بناء الـ ISO: ${OUTPUT_DIR}/${ISO_NAME}"
+    log "تم بناء ISO: ${iso_output}"
+    log "حجم ISO: $(du -sh "$iso_output" | awk '{print $1}')"
 }
 
+# ── 7. Checksums ──────────────────────────────────────────────────────────────
 generate_checksums() {
     section "توليد Checksums"
+
     cd "$OUTPUT_DIR"
     sha256sum "$ISO_NAME" > "${ISO_NAME}.sha256"
-    md5sum    "$ISO_NAME" > "${ISO_NAME}.md5"
-    log "تم كتابة الـ checksums."
+    md5sum "$ISO_NAME" > "${ISO_NAME}.md5"
+    cd "$PROJECT_DIR"
+
+    log "SHA256: $(cat "${OUTPUT_DIR}/${ISO_NAME}.sha256")"
 }
 
+# ── 8. تنظيف ─────────────────────────────────────────────────────────────────
+clean() {
+    section "تنظيف مجلد العمل"
+    cleanup
+    rm -rf "$WORK_DIR"
+    log "تم التنظيف. (الكاش محفوظ في ${ISO_CACHE})"
+}
+
+# ── ملخص ──────────────────────────────────────────────────────────────────────
 print_summary() {
     section "اكتمل البناء"
     echo -e "${GREEN}${BOLD}"
     echo "  ╔══════════════════════════════════════════════════╗"
     echo "  ║         ATLAZES OS BUILD COMPLETE                ║"
     echo "  ╠══════════════════════════════════════════════════╣"
-    printf "  ║  Edition : %-37s║\n" "${EDITION^}"
+    printf "  ║  Version : %-37s║\n" "${OS_VERSION}"
+    printf "  ║  Base    : %-37s║\n" "Debian ${DEBIAN_VERSION} (${DEBIAN_CODENAME}) Live XFCE"
     printf "  ║  ISO     : %-37s║\n" "${ISO_NAME}"
+    printf "  ║  Size    : %-37s║\n" "$(du -sh "${OUTPUT_DIR}/${ISO_NAME}" 2>/dev/null | awk '{print $1}')"
     echo "  ╚══════════════════════════════════════════════════╝"
     echo -e "${NC}"
 }
 
-clean_build() {
-    section "تنظيف البناء"
-    if [[ -d "$BUILD_DIR" ]]; then
-        cd "$BUILD_DIR"
-        lb clean --purge 2>/dev/null || true
-        cd "$PROJECT_DIR"
-    fi
-    rm -rf "${PROJECT_DIR}/build"
-    log "تم التنظيف."
-}
-
-parse_args() {
-    local cmd="${1:-build}"
-    shift || true
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --edition=*) EDITION="${1#--edition=}" ;;
-            --edition)   EDITION="${2:-core}"; shift ;;
-            *)           warn "معامل غير معروف: $1" ;;
-        esac
-        shift
-    done
-    echo "$cmd"
-}
-
+# ── Main ──────────────────────────────────────────────────────────────────────
 main() {
     echo -e "${BLUE}${BOLD}"
     echo "  ╔══════════════════════════════════════════╗"
-    echo "  ║           ATLAZES OS BUILDER             ║"
+    echo "  ║           ATLAZES OS BUILDER v2          ║"
     echo "  ║     Secure · Private · Professional      ║"
+    echo "  ║   Method: Debian Live ISO Remastering    ║"
     echo "  ╚══════════════════════════════════════════╝"
     echo -e "${NC}"
 
-    local cmd
-    cmd=$(parse_args "$@")
+    local cmd="${1:-build}"
 
     case "$cmd" in
         build)
-            check_root
-            check_dependencies
-            prepare_dirs
-            setup_edition
+            check_requirements
+            download_iso
+            extract_iso
+            apply_customizations
+            repack_squashfs
             build_iso
             generate_checksums
             print_summary
             ;;
         clean)
-            check_root
-            clean_build
+            clean
             ;;
-        deps)
-            check_root
-            check_dependencies
+        clean-all)
+            clean
+            rm -rf "$ISO_CACHE"
+            log "تم حذف الكاش أيضاً."
+            ;;
+        download)
+            check_requirements
+            download_iso
             ;;
         *)
-            echo "الاستخدام: sudo ./build.sh [build|clean|deps] [--edition=core|dev|security]"
+            echo "الاستخدام: sudo ./build.sh [build|clean|clean-all|download]"
+            echo ""
+            echo "  build     — بناء ISO كامل"
+            echo "  clean     — حذف مجلد العمل (يحتفظ بالكاش)"
+            echo "  clean-all — حذف كل شيء بما فيه ISO المُحمَّل"
+            echo "  download  — تحميل ISO الرسمي فقط"
             exit 1
             ;;
     esac

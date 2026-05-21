@@ -6,15 +6,6 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      edition:
-        description: 'Edition to build'
-        required: true
-        default: 'core'
-        type: choice
-        options:
-          - core
-          - dev
-          - security
       create_release:
         description: 'Create GitHub Release after build?'
         required: true
@@ -24,17 +15,16 @@ on:
           - 'true'
           - 'false'
       release_tag:
-        description: 'Release tag (e.g. v1.0.0-beta.1) — required if creating release'
+        description: 'Release tag (e.g. v2.0.0)'
         required: false
-        default: 'v1.0.0-beta.1'
+        default: 'v2.0.0'
 
 jobs:
   build:
-    name: Build ${{ github.event.inputs.edition || 'core' }} edition
-    runs-on: ubuntu-22.04
+    name: Build ATLAZES OS
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
 
-    # صلاحيات كتابة الـ releases
     permissions:
       contents: write
 
@@ -47,7 +37,7 @@ jobs:
       - name: Free disk space
         run: |
           echo "=== Disk before ==="
-          df -h
+          df -h /
           sudo apt-get remove -y \
             '^dotnet-.*' '^llvm-.*' '^php.*' \
             azure-cli google-cloud-sdk google-chrome-stable \
@@ -58,129 +48,68 @@ jobs:
           sudo rm -rf \
             /usr/share/dotnet /usr/local/lib/android \
             /opt/ghc /opt/hostedtoolcache/CodeQL \
-            /usr/local/share/boost 2>/dev/null || true
+            /usr/local/share/boost \
+            /usr/local/share/chromium \
+            /usr/local/share/powershell 2>/dev/null || true
           echo "=== Disk after ==="
-          df -h
+          df -h /
 
-      # ── 3. تثبيت التبعيات الأساسية ───────────────────────────────────────────
-      - name: Install base dependencies
+      # ── 3. تثبيت التبعيات ────────────────────────────────────────────────────
+      - name: Install dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y \
-            debootstrap squashfs-tools xorriso \
-            isolinux syslinux-efi \
+            wget xorriso squashfs-tools \
             grub-pc-bin grub-efi-amd64-bin \
-            mtools dosfstools \
-            curl wget rsync \
-            librsvg2-bin ca-certificates \
-            gnupg2 dpkg-dev
+            mtools dosfstools isolinux syslinux-common \
+            rsync curl
 
-      # ── 4. إصلاح مفاتيح Debian GPG ───────────────────────────────────────────
-      - name: Fix Debian GPG keyring
+      # ── 4. التحقق من البيئة ──────────────────────────────────────────────────
+      - name: Verify environment
         run: |
-          echo "=== Installing debian-archive-keyring from Debian ==="
-          KEYRING_URL="http://deb.debian.org/debian/pool/main/d/debian-archive-keyring"
-          KEYRING_DEB=$(curl -fsSL "${KEYRING_URL}/" 2>/dev/null | \
-            grep -oP 'debian-archive-keyring_[0-9.]+_all\.deb' | \
-            sort -V | tail -1 || echo "")
+          echo "xorriso: $(xorriso --version 2>&1 | head -1)"
+          echo "mksquashfs: $(mksquashfs -version 2>&1 | head -1)"
+          df -h /
 
-          if [[ -n "$KEYRING_DEB" ]]; then
-            echo "Downloading: ${KEYRING_DEB}"
-            curl -fsSL "${KEYRING_URL}/${KEYRING_DEB}" -o "/tmp/${KEYRING_DEB}"
-            sudo dpkg -i "/tmp/${KEYRING_DEB}"
-            rm -f "/tmp/${KEYRING_DEB}"
-          else
-            sudo mkdir -p /usr/share/keyrings
-            for KEY_URL in \
-              "https://ftp-master.debian.org/keys/release-12.asc" \
-              "https://ftp-master.debian.org/keys/archive-key-12.asc" \
-              "https://ftp-master.debian.org/keys/archive-key-12-security.asc"; do
-              curl -fsSL "${KEY_URL}" 2>/dev/null | \
-                sudo gpg --dearmor \
-                >> /usr/share/keyrings/debian-archive-keyring.gpg || true
-            done
-          fi
-
-          sudo gpg --no-default-keyring \
-            --keyring /usr/share/keyrings/debian-archive-keyring.gpg \
-            --keyserver hkps://keyserver.ubuntu.com \
-            --recv-keys F8D2585B8783D481 2>/dev/null || true
-
-      # ── 5. تثبيت live-build الحديث من Debian ─────────────────────────────────
-      - name: Install modern live-build from Debian
-        run: |
-          DEBIAN_LB_URL="http://deb.debian.org/debian/pool/main/l/live-build"
-          LB_DEB=$(curl -fsSL "${DEBIAN_LB_URL}/" 2>/dev/null | \
-            grep -oP 'live-build_[0-9]+_all\.deb' | \
-            sort -V | tail -1 || echo "")
-
-          if [[ -n "$LB_DEB" ]]; then
-            curl -fsSL "${DEBIAN_LB_URL}/${LB_DEB}" -o "/tmp/${LB_DEB}"
-            sudo dpkg -i "/tmp/${LB_DEB}" || sudo apt-get install -f -y
-            rm -f "/tmp/${LB_DEB}"
-          else
-            for VER in "20230131" "20221020" "20210208"; do
-              DEB_FILE="live-build_${VER}_all.deb"
-              if curl -fsSL --max-time 30 \
-                "${DEBIAN_LB_URL}/${DEB_FILE}" \
-                -o "/tmp/${DEB_FILE}" 2>/dev/null; then
-                sudo dpkg -i "/tmp/${DEB_FILE}" || sudo apt-get install -f -y
-                rm -f "/tmp/${DEB_FILE}"
-                break
-              fi
-            done
-          fi
-          echo "=== live-build version ===" && lb --version
-
-      # ── 6. التحقق من البيئة ───────────────────────────────────────────────────
-      - name: Verify build environment
-        run: |
-          lb --version
-          debootstrap --version
-          df -h
-
-      # ── 7. بناء الـ ISO ───────────────────────────────────────────────────────
-      - name: Build ISO
-        env:
-          ATLAZES_EDITION: ${{ github.event.inputs.edition || 'core' }}
-          ATLAZES_MIRROR: http://deb.debian.org/debian
+      # ── 5. بناء ISO ─────────────────────────────────────────────────────────
+      - name: Build ATLAZES OS ISO
         run: |
           chmod +x build.sh
-          sudo -E ./build.sh build --edition="${ATLAZES_EDITION}"
+          sudo ./build.sh build
 
-      # ── 8. عرض نتائج البناء ──────────────────────────────────────────────────
+      # ── 6. عرض النتائج ───────────────────────────────────────────────────────
       - name: Show build results
         if: always()
         run: |
-          ls -lh output/ 2>/dev/null || echo "No output"
-          df -h
-          tail -50 build/build-*.log 2>/dev/null || true
+          echo "=== Output ==="
+          ls -lh output/ 2>/dev/null || echo "No output directory"
+          echo "=== Disk usage ==="
+          df -h /
+          echo "=== Build log (last 80 lines) ==="
+          tail -80 build.log 2>/dev/null || true
 
-      # ── 9. رفع الـ ISO كـ artifact (دائماً عند النجاح) ───────────────────────
+      # ── 7. رفع ISO كـ artifact ──────────────────────────────────────────────
       - name: Upload ISO artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: atlazes-os-${{ github.event.inputs.edition || 'core' }}-iso
+          name: atlazes-os-iso
           path: |
             output/*.iso
             output/*.sha256
             output/*.md5
           retention-days: 30
 
-      # ── 10. رفع سجل البناء عند الفشل ─────────────────────────────────────────
+      # ── 8. رفع سجل البناء عند الفشل ─────────────────────────────────────────
       - name: Upload build log on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: build-log-failure
-          path: build/build-*.log
+          path: build.log
           retention-days: 7
 
-      # ── 11. إنشاء GitHub Release ──────────────────────────────────────────────
-      # يعمل في حالتين:
-      #   أ) push لـ tag يبدأ بـ v (مثل: git tag v1.0.0-beta.1 && git push --tags)
-      #   ب) workflow_dispatch مع اختيار create_release = true
+      # ── 9. إنشاء GitHub Release ─────────────────────────────────────────────
       - name: Create GitHub Release
         if: >
           success() && (
@@ -198,11 +127,15 @@ jobs:
           body: |
             ## ATLAZES OS ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.event.inputs.release_tag }}
 
-            **الإصدار:** ${{ github.event.inputs.edition || 'core' }}
-            **القاعدة:** Debian 12 (Bookworm)
+            **القاعدة:** Debian 13 (Trixie) Live XFCE
+            **الطريقة:** ISO Remastering (Official Debian Live + ATLAZES customizations)
             **تاريخ البناء:** ${{ github.run_id }}
 
-            ---
+            ### المميزات
+            - 🔒 Security hardening (kernel, AppArmor, UFW, audit)
+            - 🕵️ Privacy tools (Tor, MAC randomization, Firefox policies)
+            - 🛡️ Application sandboxing (Firejail)
+            - 💻 Calamares installer for permanent installation
 
             ### التحقق من التحميل
             ```bash
@@ -213,11 +146,8 @@ jobs:
             ```bash
             sudo dd if=atlazes-os-*.iso of=/dev/sdX bs=4M status=progress oflag=sync
             ```
-
-            ### ⚠️ Public Beta
-            هذا إصدار تجريبي. راجع [BETA.md](https://github.com/${{ github.repository }}/blob/main/BETA.md) للتفاصيل.
           draft: false
-          prerelease: ${{ contains(github.event.inputs.release_tag, 'beta') || contains(github.event.inputs.release_tag, 'rc') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          prerelease: ${{ contains(github.event.inputs.release_tag || github.ref_name, 'beta') || contains(github.event.inputs.release_tag || github.ref_name, 'rc') }}
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
