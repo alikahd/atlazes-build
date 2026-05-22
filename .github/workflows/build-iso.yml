@@ -114,8 +114,13 @@ jobs:
         if: success()
         run: |
           ISO_FILE=$(find output/ -name "*.iso" | head -1)
+          if [[ -z "$ISO_FILE" ]]; then
+            echo "No ISO file found, skipping split."
+            exit 0
+          fi
+
           ISO_SIZE=$(stat -c%s "$ISO_FILE")
-          MAX_SIZE=1900000000  # 1.9GB per part (safety margin)
+          MAX_SIZE=1900000000
 
           if [[ $ISO_SIZE -gt $MAX_SIZE ]]; then
             echo "ISO is ${ISO_SIZE} bytes — splitting into parts..."
@@ -125,13 +130,13 @@ jobs:
             ls -lh output/*.part*
 
             # إنشاء سكريبت لإعادة التجميع
-            cat > output/JOIN-ISO.sh << 'JOINEOF'
-#!/bin/bash
-# إعادة تجميع أجزاء ISO
-echo "Joining ISO parts..."
-cat atlazes-os-*.iso.part* > atlazes-os-2.0.0-amd64.iso
-echo "Done! Verify with: sha256sum -c atlazes-os-*.sha256"
-JOINEOF
+            {
+              echo '#!/bin/bash'
+              echo '# إعادة تجميع أجزاء ISO'
+              echo 'echo "Joining ISO parts..."'
+              echo 'cat atlazes-os-*.iso.part* > atlazes-os-2.0.0-amd64.iso'
+              echo 'echo "Done! Verify with: sha256sum -c atlazes-os-*.sha256"'
+            } > output/JOIN-ISO.sh
             chmod +x output/JOIN-ISO.sh
 
             # تحديث checksum
