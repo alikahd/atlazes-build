@@ -1,0 +1,147 @@
+#!/bin/bash
+# =============================================================================
+# ATLAZES OS — أدوات الخصوصية (MAC randomization, DNS, Tor)
+# =============================================================================
+
+set -e
+
+usage() {
+    cat <<EOF
+Usage: atlazes-privacy <command> [args]
+
+Commands:
+  status                   عرض حالة الخصوصية الحالية
+  mac-random [iface]       تغيير عنوان MAC عشوائياً (افتراضي: أوّل واجهة)
+  mac-restore [iface]      استعادة عنوان MAC الأصلي
+  dns                      تطبيق DNS خاص (Quad9 + Cloudflare)
+  tor on|off|status        إدارة خدمة Tor
+
+EOF
+}
+
+# ── الحصول على أوّل واجهة شبكة (غير loopback) ──────────────────────────────
+default_iface() {
+    ip -o link show 2>/dev/null \
+        | awk -F': ' '$2 != "lo" {print $2; exit}'
+}
+
+cmd_status() {
+    echo "─── ATLAZES Privacy Status ──────────────────────────"
+    echo ""
+    echo "MAC addresses:"
+    for f in /sys/class/net/*/address; do
+        iface=$(basename "$(dirname "$f")")
+        [[ "$iface" == "lo" ]] && continue
+        addr=$(cat "$f" 2>/dev/null || echo "?")
+        echo "  $iface : $addr"
+    done
+    echo ""
+    echo "DNS (resolv.conf):"
+    grep -E "^nameserver" /etc/resolv.conf 2>/dev/null | sed 's/^/  /' || echo "  (not configured)"
+    echo ""
+    if systemctl list-unit-files tor.service &>/dev/null 2>&1; then
+        echo "Tor: $(systemctl is-active tor 2>/dev/null || echo 'inactive')"
+    else
+        echo "Tor: (not installed)"
+    fi
+    echo ""
+}
+
+cmd_mac_random() {
+    local iface="${1:-$(default_iface)}"
+    if [[ -z "$iface" ]]; then
+        echo "خطأ: لم يتم العثور على واجهة شبكة" >&2
+        exit 1
+    fi
+
+    if ! command -v macchanger &>/dev/null; then
+        echo "خطأ: macchanger غير مثبّت" >&2
+        exit 1
+    fi
+
+    echo "[+] تغيير MAC للواجهة: $iface"
+    sudo ip link set "$iface" down
+    sudo macchanger -r "$iface"
+    sudo ip link set "$iface" up
+}
+
+cmd_mac_restore() {
+    local iface="${1:-$(default_iface)}"
+    if [[ -z "$iface" ]]; then
+        echo "خطأ: لم يتم العثور على واجهة شبكة" >&2
+        exit 1
+    fi
+    echo "[+] استعادة MAC الأصلي للواجهة: $iface"
+    sudo ip link set "$iface" down
+    sudo macchanger -p "$iface"
+    sudo ip link set "$iface" up
+}
+
+cmd_dns() {
+    if [[ -x /usr/local/bin/atlazes-dns ]]; then
+        sudo /usr/local/bin/atlazes-dns apply
+    else
+        echo "تطبيق DNS خاص (Quad9 + Cloudflare)..."
+        sudo tee /etc/resolv.conf > /dev/null <<DNS
+# ATLAZES OS - Privacy DNS
+nameserver 9.9.9.9
+nameserver 149.112.112.112
+nameserver 1.1.1.1
+DNS
+        echo "[+] تم تطبيق DNS الخاص."
+    fi
+}
+
+cmd_tor() {
+    if ! systemctl list-unit-files tor.service &>/dev/null 2>&1; then
+        echo "خطأ: خدمة tor غير مثبّتة" >&2
+        exit 1
+    fi
+    case "${1:-status}" in
+        on|start|enable)
+            sudo systemctl start tor
+            echo "[+] Tor مُفعَّل."
+            ;;
+        off|stop|disable)
+            sudo systemctl stop tor
+            echo "[+] Tor متوقّف."
+            ;;
+        status|"")
+            systemctl status tor --no-pager 2>/dev/null || true
+            ;;
+        *)
+            echo "Usage: atlazes-privacy tor [on|off|status]" >&2
+            exit 1
+            ;;
+    esac
+}
+
+# ── dispatch ──────────────────────────────────────────────────────────────────
+case "${1:-status}" in
+    status)
+        cmd_status
+        ;;
+    mac-random)
+        shift
+        cmd_mac_random "$@"
+        ;;
+    mac-restore)
+        shift
+        cmd_mac_restore "$@"
+        ;;
+    dns)
+        cmd_dns
+        ;;
+    tor)
+        shift
+        cmd_tor "$@"
+        ;;
+    help|-h|--help)
+        usage
+        ;;
+    *)
+        echo "أمر غير معروف: $1" >&2
+        usage >&2
+        exit 1
+        ;;
+esac

@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=ATLAZES Tools
+Name[ar]=أدوات أتلازس
+GenericName=ATLAZES Control Center
+Comment=ATLAZES OS Control Center — info, firewall, privacy
+Comment[ar]=مركز تحكّم ATLAZES OS — معلومات وجدار حماية وخصوصية
+Exec=xfce4-terminal --title="ATLAZES Tools" --hold -e "bash -c 'atlazes info; echo; bash'"
+Icon=atlazes
+Terminal=false
+Categories=System;Settings;Security;
+Keywords=atlazes;security;privacy;firewall;system;
+StartupNotify=true

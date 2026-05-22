@@ -109,7 +109,38 @@ jobs:
           path: build.log
           retention-days: 7
 
-      # ── 9. إنشاء GitHub Release ─────────────────────────────────────────────
+      # ── 9. تقسيم ISO إذا كان أكبر من 2GB ──────────────────────────────────────
+      - name: Split ISO for GitHub Release (2GB limit)
+        if: success()
+        run: |
+          ISO_FILE=$(find output/ -name "*.iso" | head -1)
+          ISO_SIZE=$(stat -c%s "$ISO_FILE")
+          MAX_SIZE=1900000000  # 1.9GB per part (safety margin)
+
+          if [[ $ISO_SIZE -gt $MAX_SIZE ]]; then
+            echo "ISO is ${ISO_SIZE} bytes — splitting into parts..."
+            split -b 1900M "$ISO_FILE" "${ISO_FILE}.part"
+            rm "$ISO_FILE"
+            echo "Parts created:"
+            ls -lh output/*.part*
+
+            # إنشاء سكريبت لإعادة التجميع
+            cat > output/JOIN-ISO.sh << 'JOINEOF'
+#!/bin/bash
+# إعادة تجميع أجزاء ISO
+echo "Joining ISO parts..."
+cat atlazes-os-*.iso.part* > atlazes-os-2.0.0-amd64.iso
+echo "Done! Verify with: sha256sum -c atlazes-os-*.sha256"
+JOINEOF
+            chmod +x output/JOIN-ISO.sh
+
+            # تحديث checksum
+            cat output/*.iso.part* | sha256sum | awk '{print $1 "  atlazes-os-2.0.0-amd64.iso"}' > output/atlazes-os-2.0.0-amd64.iso.sha256
+          else
+            echo "ISO is ${ISO_SIZE} bytes — no split needed."
+          fi
+
+      # ── 10. إنشاء GitHub Release ────────────────────────────────────────────
       - name: Create GitHub Release
         if: >
           success() && (
@@ -121,23 +152,24 @@ jobs:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.event.inputs.release_tag }}
           name: "ATLAZES OS ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.event.inputs.release_tag }}"
           files: |
-            output/*.iso
-            output/*.sha256
-            output/*.md5
+            output/*
           body: |
             ## ATLAZES OS ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.event.inputs.release_tag }}
 
             **القاعدة:** Debian 13 (Trixie) Live XFCE
             **الطريقة:** ISO Remastering (Official Debian Live + ATLAZES customizations)
-            **تاريخ البناء:** ${{ github.run_id }}
 
-            ### المميزات
-            - 🔒 Security hardening (kernel, AppArmor, UFW, audit)
-            - 🕵️ Privacy tools (Tor, MAC randomization, Firefox policies)
-            - 🛡️ Application sandboxing (Firejail)
-            - 💻 Calamares installer for permanent installation
+            ### التحميل
+            إذا كان ISO مُقسَّم إلى أجزاء (`.partaa`, `.partab`, ...):
+            ```bash
+            # Linux/macOS:
+            cat atlazes-os-*.iso.part* > atlazes-os.iso
 
-            ### التحقق من التحميل
+            # أو استخدم السكريبت:
+            bash JOIN-ISO.sh
+            ```
+
+            ### التحقق
             ```bash
             sha256sum -c atlazes-os-*.sha256
             ```
@@ -146,6 +178,12 @@ jobs:
             ```bash
             sudo dd if=atlazes-os-*.iso of=/dev/sdX bs=4M status=progress oflag=sync
             ```
+
+            ### المميزات
+            - 🔒 Security hardening (kernel, AppArmor, UFW, audit)
+            - 🕵️ Privacy tools (Tor, MAC randomization, Firefox policies)
+            - 🛡️ Application sandboxing (Firejail)
+            - 💻 Calamares installer
           draft: false
           prerelease: ${{ contains(github.event.inputs.release_tag || github.ref_name, 'beta') || contains(github.event.inputs.release_tag || github.ref_name, 'rc') }}
           make_latest: true

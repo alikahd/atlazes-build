@@ -1,0 +1,125 @@
+#!/bin/bash
+# =============================================================================
+# ATLAZES OS — واجهة الأوامر الرئيسية
+# Usage: atlazes <command> [args...]
+# =============================================================================
+
+set -e
+
+VERSION="2.0 (Horizon)"
+BASE="Debian 13 (Trixie)"
+
+# ── ألوان ─────────────────────────────────────────────────────────────────────
+CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+print_banner() {
+    echo -e "${CYAN}${BOLD}"
+    echo "  ╔══════════════════════════════════════════╗"
+    echo "  ║              ATLAZES OS                   ║"
+    echo "  ║      Secure · Private · Professional      ║"
+    echo "  ╚══════════════════════════════════════════╝"
+    echo -e "${NC}"
+}
+
+show_help() {
+    print_banner
+    cat <<EOF
+${BOLD}Usage:${NC} atlazes <command> [args...]
+
+${BOLD}Commands:${NC}
+  info, status     عرض معلومات النظام
+  version          عرض إصدار ATLAZES OS
+  update           تحديث النظام (apt update + upgrade)
+  firewall <args>  إدارة جدار الحماية (UFW)
+  privacy <args>   أدوات الخصوصية (MAC/DNS/Tor)
+  help             عرض هذه المساعدة
+
+${BOLD}Examples:${NC}
+  atlazes info
+  atlazes update
+  atlazes firewall status
+  atlazes privacy tor on
+
+EOF
+}
+
+cmd_info() {
+    print_banner
+    echo -e "${BOLD}ATLAZES OS:${NC} ${VERSION}"
+    echo -e "${BOLD}Base:${NC}       ${BASE}"
+    echo ""
+    if [[ -r /etc/os-release ]]; then
+        echo -e "${BOLD}/etc/os-release:${NC}"
+        cat /etc/os-release | sed 's/^/  /'
+    fi
+    echo ""
+    echo -e "${BOLD}Kernel:${NC}     $(uname -r)"
+    echo -e "${BOLD}Hostname:${NC}   $(hostname)"
+    echo -e "${BOLD}Uptime:${NC}    $(uptime -p 2>/dev/null || uptime)"
+    echo ""
+    if command -v ufw &>/dev/null; then
+        echo -e "${BOLD}Firewall:${NC}   $(sudo -n ufw status 2>/dev/null | head -1 || echo 'unknown (needs sudo)')"
+    fi
+    if systemctl list-unit-files apparmor.service &>/dev/null; then
+        echo -e "${BOLD}AppArmor:${NC}   $(systemctl is-active apparmor 2>/dev/null || echo 'unknown')"
+    fi
+    if systemctl list-unit-files tor.service &>/dev/null; then
+        echo -e "${BOLD}Tor:${NC}        $(systemctl is-active tor 2>/dev/null || echo 'inactive')"
+    fi
+}
+
+cmd_update() {
+    echo -e "${GREEN}[+]${NC} تحديث قوائم الحزم..."
+    sudo apt-get update
+    echo -e "${GREEN}[+]${NC} ترقية الحزم..."
+    sudo apt-get upgrade -y
+    echo -e "${GREEN}[+]${NC} اكتمل التحديث."
+}
+
+cmd_version() {
+    echo "ATLAZES OS ${VERSION}"
+}
+
+# ── التحويل للأمر المناسب ────────────────────────────────────────────────────
+case "${1:-help}" in
+    info|status)
+        cmd_info
+        ;;
+    version|--version|-v)
+        cmd_version
+        ;;
+    update|upgrade)
+        cmd_update
+        ;;
+    firewall|fw)
+        shift
+        if command -v atlazes-firewall &>/dev/null; then
+            atlazes-firewall "$@"
+        else
+            echo "خطأ: atlazes-firewall غير مثبّت" >&2
+            exit 1
+        fi
+        ;;
+    privacy)
+        shift
+        if command -v atlazes-privacy &>/dev/null; then
+            atlazes-privacy "$@"
+        else
+            echo "خطأ: atlazes-privacy غير مثبّت" >&2
+            exit 1
+        fi
+        ;;
+    help|--help|-h|"")
+        show_help
+        ;;
+    *)
+        echo "أمر غير معروف: $1" >&2
+        echo "" >&2
+        show_help >&2
+        exit 1
+        ;;
+esac

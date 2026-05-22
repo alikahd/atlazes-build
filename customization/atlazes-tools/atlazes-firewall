@@ -1,0 +1,66 @@
+#!/bin/bash
+# =============================================================================
+# ATLAZES OS — أداة إدارة جدار الحماية (UFW)
+# =============================================================================
+
+set -e
+
+if ! command -v ufw &>/dev/null; then
+    echo "خطأ: UFW غير مثبّت. ثبّت بـ: sudo apt install ufw" >&2
+    exit 1
+fi
+
+case "${1:-status}" in
+    on|enable|start)
+        echo "[+] تفعيل جدار الحماية..."
+        sudo ufw --force enable
+        sudo ufw status verbose
+        ;;
+    off|disable|stop)
+        echo "[+] تعطيل جدار الحماية..."
+        sudo ufw disable
+        ;;
+    status|"")
+        sudo ufw status verbose
+        ;;
+    reload)
+        echo "[+] إعادة تحميل القواعد..."
+        sudo ufw reload
+        ;;
+    reset)
+        echo "[!] هل أنت متأكد من إعادة تعيين كل قواعد UFW؟ (yes/no)"
+        read -r confirm
+        if [[ "$confirm" == "yes" ]]; then
+            sudo ufw --force reset
+        fi
+        ;;
+    allow)
+        shift
+        sudo ufw allow "$@"
+        ;;
+    deny)
+        shift
+        sudo ufw deny "$@"
+        ;;
+    delete)
+        shift
+        sudo ufw delete "$@"
+        ;;
+    *)
+        cat <<EOF
+Usage: atlazes-firewall <command> [args]
+
+Commands:
+  on, enable      تفعيل جدار الحماية
+  off, disable    تعطيل جدار الحماية
+  status          عرض حالة الجدار والقواعد (افتراضي)
+  reload          إعادة تحميل القواعد
+  reset           إعادة تعيين كل القواعد
+  allow <rule>    السماح بقاعدة (مثلاً: allow 22)
+  deny <rule>     منع قاعدة
+  delete <rule>   حذف قاعدة
+
+EOF
+        exit 1
+        ;;
+esac

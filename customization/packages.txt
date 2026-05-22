@@ -91,3 +91,17 @@ python3-jsonschema
 gnome-keyring
 ca-certificates
 openssl
+
+# ── Branding & Boot Splash ────────────────────────────────────────────────────
+plymouth
+plymouth-themes
+plymouth-label
+librsvg2-bin
+imagemagick
+
+# ── Themes & Icons ────────────────────────────────────────────────────────────
+arc-theme
+papirus-icon-theme
+adwaita-icon-theme
+fonts-cantarell
+fonts-dejavu

@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  ATLAZES OS - Default Desktop Wallpaper (1920x1080)
+  خلفية احترافية: تدرّج داكن + شبكة هندسية + شعار في المنتصف
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <!-- تدرّج الخلفية الرئيسي -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#0a0e27"/>
+      <stop offset="100%" stop-color="#1a2148"/>
+    </linearGradient>
+
+    <!-- توهّج مركزي -->
+    <radialGradient id="centerGlow" cx="50%" cy="50%" r="45%">
+      <stop offset="0%"   stop-color="#00d4ff" stop-opacity="0.10"/>
+      <stop offset="60%"  stop-color="#00d4ff" stop-opacity="0.02"/>
+      <stop offset="100%" stop-color="#00d4ff" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- شبكة هندسية (pattern) -->
+    <pattern id="grid" x="0" y="0" width="80" height="80" patternUnits="userSpaceOnUse">
+      <path d="M 80 0 L 0 0 0 80" fill="none" stroke="#00d4ff" stroke-width="0.5" opacity="0.06"/>
+    </pattern>
+
+    <!-- تدرّج سماوي للشعار -->
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#00d4ff"/>
+      <stop offset="100%" stop-color="#0099cc"/>
+    </linearGradient>
+  </defs>
+
+  <!-- الخلفية -->
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+
+  <!-- الشبكة الهندسية -->
+  <rect width="1920" height="1080" fill="url(#grid)"/>
+
+  <!-- توهّج مركزي -->
+  <rect width="1920" height="1080" fill="url(#centerGlow)"/>
+
+  <!-- خطوط أفقية رفيعة (horizon) -->
+  <g stroke="#00d4ff" stroke-width="1" opacity="0.10">
+    <line x1="0" y1="540" x2="1920" y2="540"/>
+    <line x1="0" y1="270" x2="1920" y2="270"/>
+    <line x1="0" y1="810" x2="1920" y2="810"/>
+  </g>
+
+  <!-- خطوط قطرية decorative -->
+  <g stroke="#00d4ff" stroke-width="0.6" opacity="0.08">
+    <line x1="0" y1="0" x2="1920" y2="1080"/>
+    <line x1="1920" y1="0" x2="0" y2="1080"/>
+  </g>
+
+  <!-- زخارف الزوايا -->
+  <g stroke="#00d4ff" stroke-width="2" fill="none" opacity="0.30">
+    <path d="M 60 60 L 60 120 L 120 120"/>
+    <path d="M 1860 60 L 1860 120 L 1800 120"/>
+    <path d="M 60 1020 L 60 960 L 120 960"/>
+    <path d="M 1860 1020 L 1860 960 L 1800 960"/>
+  </g>
+
+  <!-- ─── الشعار في المنتصف (شفافية 30%) ─────────────────────────────────── -->
+  <g transform="translate(960 480)" opacity="0.30">
+    <g transform="translate(-220 -220) scale(0.86)">
+      <!-- قرص داكن -->
+      <circle cx="256" cy="256" r="240" fill="#0a0e27" opacity="0.5"/>
+
+      <!-- مدار مائل -->
+      <ellipse cx="256" cy="256" rx="220" ry="78"
+               fill="none" stroke="url(#cyanGrad)" stroke-width="6"
+               transform="rotate(-25 256 256)"/>
+
+      <!-- نقطة على المدار -->
+      <circle cx="256" cy="256" r="8" fill="#ffffff"
+              transform="translate(208 -78) rotate(-25 256 256)"/>
+
+      <!-- إطار دائري داخلي -->
+      <circle cx="256" cy="256" r="178"
+              fill="none" stroke="#00d4ff" stroke-width="2" opacity="0.5"/>
+
+      <!-- حرف A -->
+      <path d="M 256 130 L 168 360 L 200 360 L 220 305 L 292 305 L 312 360 L 344 360 Z"
+            fill="url(#cyanGrad)"/>
+      <path d="M 256 195 L 232 275 L 280 275 Z" fill="#0a0e27"/>
+      <rect x="232" y="285" width="48" height="6" fill="#ffffff"/>
+      <circle cx="256" cy="118" r="7" fill="#ffffff"/>
+    </g>
+  </g>
+
+  <!-- ─── النصّ السفلي ───────────────────────────────────────────────────── -->
+  <text x="960" y="980"
+        font-family="'Cantarell','Ubuntu','DejaVu Sans',sans-serif"
+        font-size="40" font-weight="300"
+        fill="#00d4ff" text-anchor="middle"
+        letter-spacing="14" opacity="0.85">ATLAZES OS</text>
+
+  <text x="960" y="1018"
+        font-family="'Cantarell','Ubuntu','DejaVu Sans',sans-serif"
+        font-size="14" font-weight="300"
+        fill="#ffffff" text-anchor="middle"
+        letter-spacing="8" opacity="0.45">SECURE  ·  PRIVATE  ·  PROFESSIONAL</text>
+
+  <!-- خط فاصل رفيع -->
+  <line x1="780" y1="945" x2="1140" y2="945"
+        stroke="#00d4ff" stroke-width="1" opacity="0.30"/>
+</svg>

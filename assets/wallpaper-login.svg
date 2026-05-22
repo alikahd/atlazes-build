@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  ATLAZES OS - Login Screen Wallpaper (1920x1080)
+  أبسط وأغمق من خلفية سطح المكتب — مناسب لشاشة LightDM
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <!-- تدرّج أغمق من النسخة الافتراضية -->
+    <radialGradient id="bgLogin" cx="50%" cy="50%" r="80%">
+      <stop offset="0%"   stop-color="#0d1430"/>
+      <stop offset="100%" stop-color="#05071a"/>
+    </radialGradient>
+
+    <linearGradient id="cyanGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#00d4ff"/>
+      <stop offset="100%" stop-color="#0099cc"/>
+    </linearGradient>
+  </defs>
+
+  <!-- الخلفية -->
+  <rect width="1920" height="1080" fill="url(#bgLogin)"/>
+
+  <!-- خطّ أفقي رفيع جداً في المنتصف (horizon line) -->
+  <line x1="0" y1="540" x2="1920" y2="540"
+        stroke="#00d4ff" stroke-width="1" opacity="0.08"/>
+
+  <!-- شعار باهت في الزاوية السفلية اليمنى -->
+  <g transform="translate(1700 950)" opacity="0.18">
+    <g transform="scale(0.30)">
+      <ellipse cx="256" cy="256" rx="220" ry="78"
+               fill="none" stroke="url(#cyanGrad2)" stroke-width="8"
+               transform="rotate(-25 256 256)"/>
+      <path d="M 256 130 L 168 360 L 200 360 L 220 305 L 292 305 L 312 360 L 344 360 Z"
+            fill="url(#cyanGrad2)"/>
+      <path d="M 256 195 L 232 275 L 280 275 Z" fill="#05071a"/>
+      <rect x="232" y="285" width="48" height="6" fill="#ffffff"/>
+    </g>
+  </g>
+
+  <!-- نصّ ATLAZES OS صغير في الزاوية -->
+  <text x="1850" y="1040"
+        font-family="'Cantarell','Ubuntu',sans-serif"
+        font-size="14" font-weight="300"
+        fill="#00d4ff" text-anchor="end"
+        letter-spacing="6" opacity="0.50">ATLAZES OS</text>
+</svg>

@@ -193,6 +193,25 @@ apply_customizations() {
     mkdir -p "$CHROOT/tmp/customization"
     cp -r "${CUSTOM_DIR}/"* "$CHROOT/tmp/customization/"
 
+    # نسخ assets الهوية (شعارات + خلفيات SVG)
+    if [[ -d "${PROJECT_DIR}/assets" ]]; then
+        log "نسخ assets إلى chroot..."
+        mkdir -p "$CHROOT/tmp/atlazes-assets"
+        cp -r "${PROJECT_DIR}/assets/"* "$CHROOT/tmp/atlazes-assets/" 2>/dev/null || true
+    else
+        warn "مجلد assets غير موجود — سيتم تخطّي شعارات/خلفيات SVG"
+    fi
+
+    # نسخ أدوات atlazes CLI
+    if [[ -d "${CUSTOM_DIR}/atlazes-tools" ]]; then
+        log "نسخ atlazes-tools إلى chroot..."
+        mkdir -p "$CHROOT/tmp/atlazes-tools"
+        cp -r "${CUSTOM_DIR}/atlazes-tools/"* "$CHROOT/tmp/atlazes-tools/" 2>/dev/null || true
+        chmod +x "$CHROOT/tmp/atlazes-tools/atlazes" 2>/dev/null || true
+        chmod +x "$CHROOT/tmp/atlazes-tools/atlazes-firewall" 2>/dev/null || true
+        chmod +x "$CHROOT/tmp/atlazes-tools/atlazes-privacy" 2>/dev/null || true
+    fi
+
     # نسخ إعدادات Calamares
     if [[ -d "$CALAMARES_DIR" ]]; then
         mkdir -p "$CHROOT/tmp/calamares"
@@ -263,6 +282,8 @@ apply_customizations() {
     log "تنظيف chroot..."
     rm -rf "$CHROOT/tmp/customization"
     rm -rf "$CHROOT/tmp/calamares"
+    rm -rf "$CHROOT/tmp/atlazes-assets"
+    rm -rf "$CHROOT/tmp/atlazes-tools"
 
     # unmount chroot filesystems
     umount "$CHROOT/proc" 2>/dev/null || true
@@ -317,11 +338,56 @@ build_iso() {
     local iso_output="${OUTPUT_DIR}/${ISO_NAME}"
     local new_iso_dir="${WORK_DIR}/new-iso"
 
-    # تحديث GRUB config لـ ATLAZES branding
+    # تحديث GRUB config لـ ATLAZES branding (استبدالات محدّدة وآمنة)
     if [[ -f "${new_iso_dir}/boot/grub/grub.cfg" ]]; then
         log "تحديث GRUB config..."
-        sed -i "s/Debian GNU\/Linux/ATLAZES OS/g" "${new_iso_dir}/boot/grub/grub.cfg"
-        sed -i "s/debian-live/atlazes-os/g" "${new_iso_dir}/boot/grub/grub.cfg"
+        sed -i "s|Debian GNU/Linux|ATLAZES OS|g" "${new_iso_dir}/boot/grub/grub.cfg"
+        sed -i "s|debian-live|atlazes-os|g" "${new_iso_dir}/boot/grub/grub.cfg"
+        sed -i "s|Debian Live|ATLAZES OS Live|g" "${new_iso_dir}/boot/grub/grub.cfg"
+        # عناوين القائمة الشائعة في Debian Live
+        sed -i 's|menuentry "Debian|menuentry "ATLAZES OS|g' "${new_iso_dir}/boot/grub/grub.cfg"
+    fi
+
+    # تحديث GRUB configs الفرعية
+    find "${new_iso_dir}/boot/grub" -name "*.cfg" -exec \
+        sed -i "s|Debian GNU/Linux|ATLAZES OS|g; s|Debian Live|ATLAZES OS Live|g" {} \; 2>/dev/null || true
+
+    # نسخ ATLAZES GRUB theme إلى ISO نفسه (للقائمة عند الإقلاع من ISO)
+    # الملفات موجودة في overlay/upper بعد تطبيق branding.sh (قبل/بعد unmount)
+    local THEME_SRC=""
+    for candidate in \
+        "${WORK_DIR}/overlay/merged/boot/grub/themes/atlazes" \
+        "${WORK_DIR}/overlay/upper/boot/grub/themes/atlazes"; do
+        if [[ -d "$candidate" ]] && [[ -n "$(ls -A "$candidate" 2>/dev/null)" ]]; then
+            THEME_SRC="$candidate"
+            break
+        fi
+    done
+
+    if [[ -n "$THEME_SRC" ]]; then
+        log "نسخ GRUB theme من ${THEME_SRC} إلى ISO..."
+        mkdir -p "${new_iso_dir}/boot/grub/themes/atlazes"
+        cp -rf "${THEME_SRC}/"* \
+            "${new_iso_dir}/boot/grub/themes/atlazes/" 2>/dev/null || true
+
+        # إضافة set theme في grub.cfg إن لم يكن موجوداً
+        if [[ -f "${new_iso_dir}/boot/grub/grub.cfg" ]] \
+           && ! grep -q "themes/atlazes" "${new_iso_dir}/boot/grub/grub.cfg"; then
+            sed -i '1i set theme=/boot/grub/themes/atlazes/theme.txt\nexport theme' \
+                "${new_iso_dir}/boot/grub/grub.cfg" 2>/dev/null || true
+        fi
+    else
+        warn "GRUB theme غير موجود في overlay — سيتم تخطّي theme في ISO"
+    fi
+
+    # استبدال خلفية GRUB القديمة (إن وُجدت) بخلفيتنا
+    if [[ -f "${new_iso_dir}/boot/grub/themes/atlazes/background.png" ]]; then
+        for old_bg in "${new_iso_dir}/boot/grub/splash.png" \
+                      "${new_iso_dir}/isolinux/splash.png"; do
+            if [[ -f "$old_bg" ]]; then
+                cp -f "${new_iso_dir}/boot/grub/themes/atlazes/background.png" "$old_bg"
+            fi
+        done
     fi
 
     # تحديث isolinux config

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  ATLAZES OS - Plymouth Boot Splash Logo (200x200 رئيسي، scalable)
+  شعار نقي بدون خلفية — Plymouth يعرضه فوق خلفية سوداء
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="plyCyan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#00d4ff"/>
+      <stop offset="100%" stop-color="#0099cc"/>
+    </linearGradient>
+
+    <radialGradient id="plyGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#00d4ff" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#00d4ff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- توهّج خلفي -->
+  <circle cx="256" cy="256" r="240" fill="url(#plyGlow)"/>
+
+  <!-- المدار المائل -->
+  <ellipse cx="256" cy="256" rx="210" ry="74"
+           fill="none" stroke="url(#plyCyan)" stroke-width="7"
+           transform="rotate(-25 256 256)"/>
+
+  <!-- نقطة لامعة على المدار -->
+  <circle cx="256" cy="256" r="9" fill="#ffffff"
+          transform="translate(198 -74) rotate(-25 256 256)"/>
+
+  <!-- إطار دائري رفيع -->
+  <circle cx="256" cy="256" r="170"
+          fill="none" stroke="#00d4ff" stroke-width="1.5" opacity="0.40"/>
+
+  <!-- حرف A -->
+  <path d="M 256 130 L 168 360 L 200 360 L 220 305 L 292 305 L 312 360 L 344 360 Z"
+        fill="url(#plyCyan)"/>
+  <path d="M 256 195 L 232 275 L 280 275 Z" fill="#000000"/>
+  <rect x="232" y="285" width="48" height="6" fill="#ffffff"/>
+  <circle cx="256" cy="118" r="7" fill="#ffffff"/>
+</svg>
