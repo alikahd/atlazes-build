@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# ATLAZES OS — أداة إدارة جدار الحماية (UFW)
+# ATLAZUS OS — أداة إدارة جدار الحماية (UFW)
 # =============================================================================
 
 set -e
@@ -48,7 +48,7 @@ case "${1:-status}" in
         ;;
     *)
         cat <<EOF
-Usage: atlazes-firewall <command> [args]
+Usage: atlazus-firewall <command> [args]
 
 Commands:
   on, enable      تفعيل جدار الحماية

@@ -1,18 +1,18 @@
 #!/bin/bash
 # =============================================================================
-# ATLAZES OS - Security Hardening
+# ATLAZUS OS - Security Hardening
 # Kernel hardening (sysctl) + AppArmor + Audit rules
 # يُشغَّل داخل chroot
 # =============================================================================
 
 set -e
 
-echo "[ATLAZES] Applying security hardening..."
+echo "[ATLAZUS] Applying security hardening..."
 
 # ── Kernel Hardening (sysctl) ─────────────────────────────────────────────────
-cat > /etc/sysctl.d/99-atlazes-hardening.conf << 'SYSCTL'
+cat > /etc/sysctl.d/99-atlazus-hardening.conf << 'SYSCTL'
 # =============================================================================
-# ATLAZES OS - Kernel Hardening
+# ATLAZUS OS - Kernel Hardening
 # =============================================================================
 
 # ── Network Security ──────────────────────────────────────────────────────────
@@ -88,10 +88,10 @@ fs.protected_fifos = 2
 fs.protected_regular = 2
 SYSCTL
 
-echo "[ATLAZES] Kernel hardening applied."
+echo "[ATLAZUS] Kernel hardening applied."
 
 # ── AppArmor ─────────────────────────────────────────────────────────────────
-echo "[ATLAZES] Configuring AppArmor..."
+echo "[ATLAZUS] Configuring AppArmor..."
 
 # تفعيل AppArmor عند الإقلاع
 if command -v systemctl &>/dev/null; then
@@ -106,15 +106,15 @@ if command -v aa-enforce &>/dev/null; then
     done
 fi
 
-echo "[ATLAZES] AppArmor configured."
+echo "[ATLAZUS] AppArmor configured."
 
 # ── Audit Rules ───────────────────────────────────────────────────────────────
-echo "[ATLAZES] Setting up audit rules..."
+echo "[ATLAZUS] Setting up audit rules..."
 
 mkdir -p /etc/audit/rules.d
 
-cat > /etc/audit/rules.d/atlazes.rules << 'AUDIT'
-# ATLAZES OS - Audit Rules
+cat > /etc/audit/rules.d/atlazus.rules << 'AUDIT'
+# ATLAZUS OS - Audit Rules
 
 # Monitor authentication
 -w /etc/passwd -p wa -k identity
@@ -155,10 +155,10 @@ if command -v systemctl &>/dev/null; then
     systemctl enable auditd.service 2>/dev/null || true
 fi
 
-echo "[ATLAZES] Audit rules configured."
+echo "[ATLAZUS] Audit rules configured."
 
 # ── UFW Firewall ──────────────────────────────────────────────────────────────
-echo "[ATLAZES] Configuring UFW..."
+echo "[ATLAZUS] Configuring UFW..."
 
 if command -v ufw &>/dev/null; then
     # إعداد القواعد الافتراضية
@@ -171,10 +171,10 @@ if command -v ufw &>/dev/null; then
     fi
 fi
 
-echo "[ATLAZES] UFW configured."
+echo "[ATLAZUS] UFW configured."
 
 # ── Firejail Profiles ─────────────────────────────────────────────────────────
-echo "[ATLAZES] Setting up Firejail..."
+echo "[ATLAZUS] Setting up Firejail..."
 
 if command -v firejail &>/dev/null; then
     # إنشاء symlinks لتطبيقات شائعة
@@ -192,10 +192,10 @@ if command -v firejail &>/dev/null; then
     fi
 fi
 
-echo "[ATLAZES] Firejail configured."
+echo "[ATLAZUS] Firejail configured."
 
 # ── Disable Unnecessary Services ──────────────────────────────────────────────
-echo "[ATLAZES] Disabling unnecessary services..."
+echo "[ATLAZUS] Disabling unnecessary services..."
 
 # خدمات لا نحتاجها في نظام أمني
 for svc in avahi-daemon cups bluetooth; do
@@ -204,4 +204,4 @@ for svc in avahi-daemon cups bluetooth; do
     fi
 done
 
-echo "[ATLAZES] Security hardening complete."
+echo "[ATLAZUS] Security hardening complete."

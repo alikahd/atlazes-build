@@ -1,18 +1,18 @@
 #!/bin/bash
 # =============================================================================
-# ATLAZES OS — Comprehensive Branding
+# ATLAZUS OS — Comprehensive Branding
 # يُشغَّل داخل chroot
 # =============================================================================
 
 set -e
 
-log()  { echo "[ATLAZES] $*"; }
-warn() { echo "[ATLAZES][!] $*" >&2; }
+log()  { echo "[ATLAZUS] $*"; }
+warn() { echo "[ATLAZUS][!] $*" >&2; }
 
-ASSETS_SRC="/tmp/atlazes-assets"
-TOOLS_SRC="/tmp/atlazes-tools"
+ASSETS_SRC="/tmp/atlazus-assets"
+TOOLS_SRC="/tmp/atlazus-tools"
 
-log "=== Starting ATLAZES branding ==="
+log "=== Starting ATLAZUS branding ==="
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -49,13 +49,13 @@ svg_to_png() {
 # =============================================================================
 log "[2] Generating logo PNGs..."
 
-LOGO_SVG="${ASSETS_SRC}/atlazes-logo.svg"
-WORK_LOGO="/tmp/atlazes-logo-out"
+LOGO_SVG="${ASSETS_SRC}/atlazus-logo.svg"
+WORK_LOGO="/tmp/atlazus-logo-out"
 mkdir -p "$WORK_LOGO"
 
 if [[ -f "$LOGO_SVG" ]]; then
     for size in 16 22 24 32 48 64 128 256 512; do
-        svg_to_png "$LOGO_SVG" "${WORK_LOGO}/atlazes-${size}.png" "$size" "$size" || true
+        svg_to_png "$LOGO_SVG" "${WORK_LOGO}/atlazus-${size}.png" "$size" "$size" || true
     done
 fi
 
@@ -64,18 +64,18 @@ fi
 # =============================================================================
 log "[3] Installing logo..."
 
-mkdir -p /usr/share/atlazes
-[[ -f "$LOGO_SVG" ]] && cp "$LOGO_SVG" /usr/share/atlazes/logo.svg
-[[ -f "${WORK_LOGO}/atlazes-256.png" ]] && cp "${WORK_LOGO}/atlazes-256.png" /usr/share/atlazes/logo.png
+mkdir -p /usr/share/atlazus
+[[ -f "$LOGO_SVG" ]] && cp "$LOGO_SVG" /usr/share/atlazus/logo.svg
+[[ -f "${WORK_LOGO}/atlazus-256.png" ]] && cp "${WORK_LOGO}/atlazus-256.png" /usr/share/atlazus/logo.png
 
-[[ -f "${WORK_LOGO}/atlazes-256.png" ]] && install -Dm644 "${WORK_LOGO}/atlazes-256.png" /usr/share/pixmaps/atlazes.png
-[[ -f "$LOGO_SVG" ]] && install -Dm644 "$LOGO_SVG" /usr/share/pixmaps/atlazes.svg
+[[ -f "${WORK_LOGO}/atlazus-256.png" ]] && install -Dm644 "${WORK_LOGO}/atlazus-256.png" /usr/share/pixmaps/atlazus.png
+[[ -f "$LOGO_SVG" ]] && install -Dm644 "$LOGO_SVG" /usr/share/pixmaps/atlazus.svg
 
 for size in 16 22 24 32 48 64 128 256 512; do
-    src="${WORK_LOGO}/atlazes-${size}.png"
-    [[ -f "$src" ]] && install -Dm644 "$src" "/usr/share/icons/hicolor/${size}x${size}/apps/atlazes.png"
+    src="${WORK_LOGO}/atlazus-${size}.png"
+    [[ -f "$src" ]] && install -Dm644 "$src" "/usr/share/icons/hicolor/${size}x${size}/apps/atlazus.png"
 done
-[[ -f "$LOGO_SVG" ]] && install -Dm644 "$LOGO_SVG" /usr/share/icons/hicolor/scalable/apps/atlazes.svg
+[[ -f "$LOGO_SVG" ]] && install -Dm644 "$LOGO_SVG" /usr/share/icons/hicolor/scalable/apps/atlazus.svg
 command -v gtk-update-icon-cache &>/dev/null && gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
 
 # =============================================================================
@@ -83,32 +83,32 @@ command -v gtk-update-icon-cache &>/dev/null && gtk-update-icon-cache -f -t /usr
 # =============================================================================
 log "[4] Installing wallpapers..."
 
-mkdir -p /usr/share/backgrounds/atlazes
+mkdir -p /usr/share/backgrounds/atlazus
 
 WP_SVG="${ASSETS_SRC}/wallpaper-default.svg"
 LOGIN_SVG="${ASSETS_SRC}/wallpaper-login.svg"
 
 if [[ -f "$WP_SVG" ]]; then
-    cp "$WP_SVG" /usr/share/backgrounds/atlazes/wallpaper.svg
-    svg_to_png "$WP_SVG" /usr/share/backgrounds/atlazes/wallpaper.png 1920 1080 || true
+    cp "$WP_SVG" /usr/share/backgrounds/atlazus/wallpaper.svg
+    svg_to_png "$WP_SVG" /usr/share/backgrounds/atlazus/wallpaper.png 1920 1080 || true
 fi
 
 if [[ -f "$LOGIN_SVG" ]]; then
-    cp "$LOGIN_SVG" /usr/share/backgrounds/atlazes/login-bg.svg
-    svg_to_png "$LOGIN_SVG" /usr/share/backgrounds/atlazes/login-bg.png 1920 1080 || true
+    cp "$LOGIN_SVG" /usr/share/backgrounds/atlazus/login-bg.svg
+    svg_to_png "$LOGIN_SVG" /usr/share/backgrounds/atlazus/login-bg.png 1920 1080 || true
 fi
 
-# إذا فشل التحويل، أنشئ PNG بسيط بلون ATLAZES كـ fallback
-if [[ ! -f /usr/share/backgrounds/atlazes/wallpaper.png ]]; then
+# إذا فشل التحويل، أنشئ PNG بسيط بلون ATLAZUS كـ fallback
+if [[ ! -f /usr/share/backgrounds/atlazus/wallpaper.png ]]; then
     log "  Creating fallback wallpaper PNG..."
     if [[ $HAS_CONVERT -eq 1 ]]; then
         convert -size 1920x1080 gradient:"#0a0e27-#1a2148" \
-            /usr/share/backgrounds/atlazes/wallpaper.png 2>/dev/null || true
+            /usr/share/backgrounds/atlazus/wallpaper.png 2>/dev/null || true
     fi
 fi
 
 # =============================================================================
-# (هـ) حذف خلفية Debian وتعيين ATLAZES كافتراضية
+# (هـ) حذف خلفية Debian وتعيين ATLAZUS كافتراضية
 # =============================================================================
 log "[5] Replacing Debian wallpaper..."
 
@@ -116,11 +116,11 @@ log "[5] Replacing Debian wallpaper..."
 rm -rf /usr/share/backgrounds/desktop-base 2>/dev/null || true
 rm -f /usr/share/backgrounds/*.png /usr/share/backgrounds/*.jpg 2>/dev/null || true
 
-# تعيين خلفية ATLAZES كافتراضية في xfconf
+# تعيين خلفية ATLAZUS كافتراضية في xfconf
 XFCE_DEFAULTS_DIR="/usr/share/xfce4/backdrops"
 mkdir -p "$XFCE_DEFAULTS_DIR"
-if [[ -f /usr/share/backgrounds/atlazes/wallpaper.png ]]; then
-    ln -sf /usr/share/backgrounds/atlazes/wallpaper.png "$XFCE_DEFAULTS_DIR/atlazes.png"
+if [[ -f /usr/share/backgrounds/atlazus/wallpaper.png ]]; then
+    ln -sf /usr/share/backgrounds/atlazus/wallpaper.png "$XFCE_DEFAULTS_DIR/atlazus.png"
 fi
 
 # تعيين في /etc/skel (للمستخدمين الجدد)
@@ -136,21 +136,21 @@ cat > "${XFCE_CFG_DIR}/xfce4-desktop.xml" << 'XFCEDESK'
         <property name="workspace0" type="empty">
           <property name="color-style" type="int" value="0"/>
           <property name="image-style" type="int" value="5"/>
-          <property name="last-image" type="string" value="/usr/share/backgrounds/atlazes/wallpaper.png"/>
+          <property name="last-image" type="string" value="/usr/share/backgrounds/atlazus/wallpaper.png"/>
         </property>
       </property>
       <property name="monitorVirtual-1" type="empty">
         <property name="workspace0" type="empty">
           <property name="color-style" type="int" value="0"/>
           <property name="image-style" type="int" value="5"/>
-          <property name="last-image" type="string" value="/usr/share/backgrounds/atlazes/wallpaper.png"/>
+          <property name="last-image" type="string" value="/usr/share/backgrounds/atlazus/wallpaper.png"/>
         </property>
       </property>
       <property name="monitorVirtual1" type="empty">
         <property name="workspace0" type="empty">
           <property name="color-style" type="int" value="0"/>
           <property name="image-style" type="int" value="5"/>
-          <property name="last-image" type="string" value="/usr/share/backgrounds/atlazes/wallpaper.png"/>
+          <property name="last-image" type="string" value="/usr/share/backgrounds/atlazus/wallpaper.png"/>
         </property>
       </property>
     </property>
@@ -158,16 +158,16 @@ cat > "${XFCE_CFG_DIR}/xfce4-desktop.xml" << 'XFCEDESK'
 </channel>
 XFCEDESK
 
-# نسخ لمستخدم atlazes مباشرة
-if id atlazes &>/dev/null; then
-    USER_XFCE="/home/atlazes/.config/xfce4/xfconf/xfce-perchannel-xml"
+# نسخ لمستخدم atlazus مباشرة
+if id atlazus &>/dev/null; then
+    USER_XFCE="/home/atlazus/.config/xfce4/xfconf/xfce-perchannel-xml"
     mkdir -p "$USER_XFCE"
     cp "${XFCE_CFG_DIR}/xfce4-desktop.xml" "$USER_XFCE/"
-    chown -R atlazes:atlazes /home/atlazes/.config 2>/dev/null || true
+    chown -R atlazus:atlazus /home/atlazus/.config 2>/dev/null || true
 fi
 
 # =============================================================================
-# (و) حذف "Install Debian" وإضافة "Install ATLAZES OS"
+# (و) حذف "Install Debian" وإضافة "Install ATLAZUS OS"
 # =============================================================================
 log "[6] Fixing desktop shortcuts..."
 
@@ -182,24 +182,24 @@ for user_home in /home/* /root; do
     rm -f "${user_home}/Desktop/Install Debian.desktop" 2>/dev/null || true
 done
 
-# إنشاء اختصار ATLAZES
-cat > /usr/share/applications/install-atlazes.desktop << 'DESKTOP'
+# إنشاء اختصار ATLAZUS
+cat > /usr/share/applications/install-atlazus.desktop << 'DESKTOP'
 [Desktop Entry]
 Type=Application
-Name=Install ATLAZES OS
-Comment=Install ATLAZES OS to your hard drive
+Name=Install ATLAZUS OS
+Comment=Install ATLAZUS OS to your hard drive
 Exec=pkexec calamares
 Icon=calamares
 Terminal=false
 Categories=System;
 DESKTOP
 
-# نسخ لسطح مكتب atlazes
-if id atlazes &>/dev/null; then
-    mkdir -p /home/atlazes/Desktop
-    cp /usr/share/applications/install-atlazes.desktop /home/atlazes/Desktop/
-    chmod +x /home/atlazes/Desktop/install-atlazes.desktop
-    chown atlazes:atlazes /home/atlazes/Desktop/install-atlazes.desktop
+# نسخ لسطح مكتب atlazus
+if id atlazus &>/dev/null; then
+    mkdir -p /home/atlazus/Desktop
+    cp /usr/share/applications/install-atlazus.desktop /home/atlazus/Desktop/
+    chmod +x /home/atlazus/Desktop/install-atlazus.desktop
+    chown atlazus:atlazus /home/atlazus/Desktop/install-atlazus.desktop
 fi
 
 # =============================================================================
@@ -273,12 +273,12 @@ log "  Bluetooth support installed."
 # =============================================================================
 log "[9] Installing GRUB theme..."
 
-GRUB_THEME_DIR="/boot/grub/themes/atlazes"
+GRUB_THEME_DIR="/boot/grub/themes/atlazus"
 mkdir -p "$GRUB_THEME_DIR"
 
 GRUB_BG_SVG="${ASSETS_SRC}/grub-background.svg"
 [[ -f "$GRUB_BG_SVG" ]] && svg_to_png "$GRUB_BG_SVG" "${GRUB_THEME_DIR}/background.png" 1920 1080 || true
-[[ -f "${WORK_LOGO}/atlazes-128.png" ]] && cp "${WORK_LOGO}/atlazes-128.png" "${GRUB_THEME_DIR}/atlazes-logo.png"
+[[ -f "${WORK_LOGO}/atlazus-128.png" ]] && cp "${WORK_LOGO}/atlazus-128.png" "${GRUB_THEME_DIR}/atlazus-logo.png"
 
 cat > "${GRUB_THEME_DIR}/theme.txt" << 'GRUBTHEME'
 title-text: ""
@@ -315,8 +315,8 @@ message-bg-color: "#0a0e27"
 GRUBTHEME
 
 if [[ -f /etc/default/grub ]]; then
-    sed -i 's|^GRUB_DISTRIBUTOR=.*|GRUB_DISTRIBUTOR="ATLAZES OS"|' /etc/default/grub 2>/dev/null || \
-        echo 'GRUB_DISTRIBUTOR="ATLAZES OS"' >> /etc/default/grub
+    sed -i 's|^GRUB_DISTRIBUTOR=.*|GRUB_DISTRIBUTOR="ATLAZUS OS"|' /etc/default/grub 2>/dev/null || \
+        echo 'GRUB_DISTRIBUTOR="ATLAZUS OS"' >> /etc/default/grub
     grep -q "^GRUB_THEME=" /etc/default/grub \
         && sed -i "s|^GRUB_THEME=.*|GRUB_THEME=\"${GRUB_THEME_DIR}/theme.txt\"|" /etc/default/grub \
         || echo "GRUB_THEME=\"${GRUB_THEME_DIR}/theme.txt\"" >> /etc/default/grub
@@ -329,32 +329,32 @@ update-grub 2>/dev/null || true
 # =============================================================================
 log "[10] Installing Plymouth theme..."
 
-PLY_DIR="/usr/share/plymouth/themes/atlazes"
+PLY_DIR="/usr/share/plymouth/themes/atlazus"
 mkdir -p "$PLY_DIR"
 
 PLY_SVG="${ASSETS_SRC}/plymouth-logo.svg"
 if [[ -f "$PLY_SVG" ]]; then
-    svg_to_png "$PLY_SVG" "${PLY_DIR}/atlazes-logo.png" 256 256 || true
-elif [[ -f "${WORK_LOGO}/atlazes-256.png" ]]; then
-    cp "${WORK_LOGO}/atlazes-256.png" "${PLY_DIR}/atlazes-logo.png"
+    svg_to_png "$PLY_SVG" "${PLY_DIR}/atlazus-logo.png" 256 256 || true
+elif [[ -f "${WORK_LOGO}/atlazus-256.png" ]]; then
+    cp "${WORK_LOGO}/atlazus-256.png" "${PLY_DIR}/atlazus-logo.png"
 fi
 
-cat > "${PLY_DIR}/atlazes.plymouth" << PLYCONF
+cat > "${PLY_DIR}/atlazus.plymouth" << PLYCONF
 [Plymouth Theme]
-Name=ATLAZES OS
-Description=ATLAZES OS boot splash
+Name=ATLAZUS OS
+Description=ATLAZUS OS boot splash
 ModuleName=script
 
 [script]
 ImageDir=${PLY_DIR}
-ScriptFile=${PLY_DIR}/atlazes.script
+ScriptFile=${PLY_DIR}/atlazus.script
 PLYCONF
 
-cat > "${PLY_DIR}/atlazes.script" << 'PLYSCRIPT'
+cat > "${PLY_DIR}/atlazus.script" << 'PLYSCRIPT'
 Window.SetBackgroundTopColor(0.039, 0.055, 0.153);
 Window.SetBackgroundBottomColor(0.102, 0.129, 0.282);
 
-logo.image = Image("atlazes-logo.png");
+logo.image = Image("atlazus-logo.png");
 logo.sprite = Sprite(logo.image);
 logo.x = Window.GetWidth() / 2 - logo.image.GetWidth() / 2;
 logo.y = Window.GetHeight() / 2 - logo.image.GetHeight() / 2 - 30;
@@ -369,8 +369,8 @@ Plymouth.SetRefreshFunction(refresh_callback);
 PLYSCRIPT
 
 update-alternatives --install /usr/share/plymouth/themes/default.plymouth \
-    default.plymouth "${PLY_DIR}/atlazes.plymouth" 100 2>/dev/null || true
-update-alternatives --set default.plymouth "${PLY_DIR}/atlazes.plymouth" 2>/dev/null || true
+    default.plymouth "${PLY_DIR}/atlazus.plymouth" 100 2>/dev/null || true
+update-alternatives --set default.plymouth "${PLY_DIR}/atlazus.plymouth" 2>/dev/null || true
 update-initramfs -u 2>/dev/null || true
 
 # =============================================================================
@@ -382,8 +382,8 @@ mkdir -p /etc/lightdm
 
 cat > /etc/lightdm/lightdm-gtk-greeter.conf << 'LIGHTDMCONF'
 [greeter]
-background=/usr/share/backgrounds/atlazes/login-bg.png
-default-user-image=/usr/share/atlazes/logo.png
+background=/usr/share/backgrounds/atlazus/login-bg.png
+default-user-image=/usr/share/atlazus/logo.png
 theme-name=Adwaita-dark
 icon-theme-name=Papirus-Dark
 font-name=Cantarell 11
@@ -397,35 +397,62 @@ LIGHTDMCONF
 rm -f /etc/lightdm/lightdm-gtk-greeter.conf.d/01_debian.conf 2>/dev/null || true
 
 # =============================================================================
-# (ل) os-release / lsb-release
+# (ل) os-release / lsb-release / hostname
 # =============================================================================
 log "[12] Updating system identity..."
 
+# ── Hostname ──────────────────────────────────────────────────────────────────
+echo "atlazus" > /etc/hostname
+
+cat > /etc/hosts << 'HOSTS'
+127.0.0.1   localhost
+127.0.1.1   atlazus
+::1         localhost ip6-localhost ip6-loopback
+ff02::1     ip6-allnodes
+ff02::2     ip6-allrouters
+HOSTS
+
+# منع live-config من تغيير الـ hostname
+mkdir -p /etc/live
+cat > /etc/live/config.conf << 'LIVECONF'
+# ATLAZUS OS - live-config
+LIVE_HOSTNAME="atlazus"
+LIVE_USERNAME="atlazus"
+LIVECONF
+
+mkdir -p /etc/live/config.conf.d
+cat > /etc/live/config.conf.d/atlazus.conf << 'LIVECONF2'
+LIVE_HOSTNAME="atlazus"
+LIVE_USERNAME="atlazus"
+LIVECONF2
+
+# ── os-release ────────────────────────────────────────────────────────────────
+
 cat > /etc/os-release << 'OSREL'
-PRETTY_NAME="ATLAZES OS 2.0"
-NAME="ATLAZES OS"
+PRETTY_NAME="ATLAZUS OS 2.0"
+NAME="ATLAZUS OS"
 VERSION_ID="2.0"
 VERSION="2.0 (Horizon)"
 VERSION_CODENAME=horizon
-ID=atlazes
+ID=atlazus
 ID_LIKE=debian
-HOME_URL="https://atlazes.os"
-SUPPORT_URL="https://github.com/atlazes/atlazes-os"
-BUG_REPORT_URL="https://github.com/atlazes/atlazes-os/issues"
-LOGO=atlazes
+HOME_URL="https://atlazus.os"
+SUPPORT_URL="https://github.com/atlazus/atlazus-os"
+BUG_REPORT_URL="https://github.com/atlazus/atlazus-os/issues"
+LOGO=atlazus
 OSREL
 
 cat > /etc/lsb-release << 'LSB'
-DISTRIB_ID=ATLAZES
+DISTRIB_ID=ATLAZUS
 DISTRIB_RELEASE=2.0
 DISTRIB_CODENAME=horizon
-DISTRIB_DESCRIPTION="ATLAZES OS 2.0 (Horizon)"
+DISTRIB_DESCRIPTION="ATLAZUS OS 2.0 (Horizon)"
 LSB
 
 cat > /etc/motd << 'MOTD'
 
    ╔══════════════════════════════════════════════╗
-   ║              A T L A Z E S   O S             ║
+   ║              A T L A Z U S   O S             ║
    ║      Secure  ·  Private  ·  Professional     ║
    ╚══════════════════════════════════════════════╝
    Version 2.0 (Horizon)  ·  Base: Debian 13
@@ -461,25 +488,25 @@ cat > "${XFCE_CFG_DIR}/xfwm4.xml" << 'XFWM'
 </channel>
 XFWM
 
-# نسخ لمستخدم atlazes
-if id atlazes &>/dev/null; then
-    USER_XFCE="/home/atlazes/.config/xfce4/xfconf/xfce-perchannel-xml"
+# نسخ لمستخدم atlazus
+if id atlazus &>/dev/null; then
+    USER_XFCE="/home/atlazus/.config/xfce4/xfconf/xfce-perchannel-xml"
     mkdir -p "$USER_XFCE"
     cp "${XFCE_CFG_DIR}/"*.xml "$USER_XFCE/" 2>/dev/null || true
-    chown -R atlazes:atlazes /home/atlazes/.config 2>/dev/null || true
+    chown -R atlazus:atlazus /home/atlazus/.config 2>/dev/null || true
 fi
 
 # =============================================================================
-# (ن) أدوات atlazes CLI
+# (ن) أدوات atlazus CLI
 # =============================================================================
-log "[14] Installing atlazes CLI tools..."
+log "[14] Installing atlazus CLI tools..."
 
 if [[ -d "$TOOLS_SRC" ]]; then
-    for tool in atlazes atlazes-firewall atlazes-privacy; do
+    for tool in atlazus atlazus-firewall atlazus-privacy; do
         [[ -f "${TOOLS_SRC}/${tool}" ]] && install -Dm755 "${TOOLS_SRC}/${tool}" "/usr/local/bin/${tool}"
     done
-    [[ -f "${TOOLS_SRC}/atlazes-tools.desktop" ]] && \
-        install -Dm644 "${TOOLS_SRC}/atlazes-tools.desktop" /usr/share/applications/atlazes-tools.desktop
+    [[ -f "${TOOLS_SRC}/atlazus-tools.desktop" ]] && \
+        install -Dm644 "${TOOLS_SRC}/atlazus-tools.desktop" /usr/share/applications/atlazus-tools.desktop
 fi
 
 # =============================================================================
@@ -488,4 +515,4 @@ fi
 rm -rf "$WORK_LOGO" 2>/dev/null || true
 apt-get clean 2>/dev/null || true
 
-log "=== ATLAZES branding complete ==="
+log "=== ATLAZUS branding complete ==="

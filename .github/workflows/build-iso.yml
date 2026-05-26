@@ -1,4 +1,4 @@
-name: Build ATLAZES OS ISO
+name: Build ATLAZUS OS ISO
 
 on:
   push:
@@ -21,7 +21,7 @@ on:
 
 jobs:
   build:
-    name: Build ATLAZES OS
+    name: Build ATLAZUS OS
     runs-on: ubuntu-24.04
     timeout-minutes: 120
 
@@ -67,7 +67,7 @@ jobs:
           echo "mksquashfs: $(mksquashfs -version 2>&1 | head -1)"
           df -h /
 
-      - name: Build ATLAZES OS ISO
+      - name: Build ATLAZUS OS ISO
         run: |
           chmod +x build.sh
           sudo ./build.sh build
@@ -86,7 +86,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: atlazes-os-iso
+          name: atlazus-os-iso
           path: |
             output/*.iso
             output/*.sha256
@@ -123,12 +123,12 @@ jobs:
               echo '#!/bin/bash'
               echo 'set -e'
               echo 'echo "Joining ISO parts..."'
-              echo 'cat atlazes-os-*.iso.part* > atlazes-os-2.0.0-amd64.iso'
-              echo 'echo "Done. Verify with: sha256sum -c atlazes-os-*.sha256"'
+              echo 'cat atlazus-os-*.iso.part* > atlazus-os-2.0.0-amd64.iso'
+              echo 'echo "Done. Verify with: sha256sum -c atlazus-os-*.sha256"'
             } > output/JOIN-ISO.sh
             chmod +x output/JOIN-ISO.sh
 
-            cat output/*.iso.part* | sha256sum | awk '{print $1 "  atlazes-os-2.0.0-amd64.iso"}' > output/atlazes-os-2.0.0-amd64.iso.sha256
+            cat output/*.iso.part* | sha256sum | awk '{print $1 "  atlazus-os-2.0.0-amd64.iso"}' > output/atlazus-os-2.0.0-amd64.iso.sha256
           else
             echo "ISO is ${ISO_SIZE} bytes; no split needed."
           fi
@@ -142,35 +142,35 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.event.inputs.release_tag }}
-          name: "ATLAZES OS ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.event.inputs.release_tag }}"
+          name: "ATLAZUS OS ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.event.inputs.release_tag }}"
           files: |
             output/*
           body: |
-            ## ATLAZES OS ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.event.inputs.release_tag }}
+            ## ATLAZUS OS ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.event.inputs.release_tag }}
 
             **Base:** Debian 13 (Trixie) Live XFCE
-            **Build method:** ISO remastering with ATLAZES branding, privacy, and hardening layers.
+            **Build method:** ISO remastering with ATLAZUS branding, privacy, and hardening layers.
 
             ### Download
             If the ISO is split into parts (`.partaa`, `.partab`, ...), join it first:
             ```bash
-            cat atlazes-os-*.iso.part* > atlazes-os.iso
+            cat atlazus-os-*.iso.part* > atlazus-os.iso
             # or:
             bash JOIN-ISO.sh
             ```
 
             ### Verify
             ```bash
-            sha256sum -c atlazes-os-*.sha256
+            sha256sum -c atlazus-os-*.sha256
             ```
 
             ### Write to USB
             ```bash
-            sudo dd if=atlazes-os-*.iso of=/dev/sdX bs=4M status=progress oflag=sync
+            sudo dd if=atlazus-os-*.iso of=/dev/sdX bs=4M status=progress oflag=sync
             ```
 
             ### Highlights
-            - ATLAZES boot, login, desktop, and installer branding
+            - ATLAZUS boot, login, desktop, and installer branding
             - Security hardening with AppArmor, UFW, Firejail, and sysctl defaults
             - Privacy tools: Tor, proxychains, MAC randomization, metadata cleaning, Firefox policies
             - Lightweight default package set; heavy scanners are optional after install

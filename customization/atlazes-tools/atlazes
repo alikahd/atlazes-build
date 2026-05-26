@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
-# ATLAZES OS — واجهة الأوامر الرئيسية
-# Usage: atlazes <command> [args...]
+# ATLAZUS OS — واجهة الأوامر الرئيسية
+# Usage: atlazus <command> [args...]
 # =============================================================================
 
 set -e
@@ -19,7 +19,7 @@ NC='\033[0m'
 print_banner() {
     echo -e "${CYAN}${BOLD}"
     echo "  ╔══════════════════════════════════════════╗"
-    echo "  ║              ATLAZES OS                   ║"
+    echo "  ║              ATLAZUS OS                   ║"
     echo "  ║      Secure · Private · Professional      ║"
     echo "  ╚══════════════════════════════════════════╝"
     echo -e "${NC}"
@@ -28,28 +28,28 @@ print_banner() {
 show_help() {
     print_banner
     cat <<EOF
-${BOLD}Usage:${NC} atlazes <command> [args...]
+${BOLD}Usage:${NC} atlazus <command> [args...]
 
 ${BOLD}Commands:${NC}
   info, status     عرض معلومات النظام
-  version          عرض إصدار ATLAZES OS
+  version          عرض إصدار ATLAZUS OS
   update           تحديث النظام (apt update + upgrade)
   firewall <args>  إدارة جدار الحماية (UFW)
   privacy <args>   أدوات الخصوصية (MAC/DNS/Tor)
   help             عرض هذه المساعدة
 
 ${BOLD}Examples:${NC}
-  atlazes info
-  atlazes update
-  atlazes firewall status
-  atlazes privacy tor on
+  atlazus info
+  atlazus update
+  atlazus firewall status
+  atlazus privacy tor on
 
 EOF
 }
 
 cmd_info() {
     print_banner
-    echo -e "${BOLD}ATLAZES OS:${NC} ${VERSION}"
+    echo -e "${BOLD}ATLAZUS OS:${NC} ${VERSION}"
     echo -e "${BOLD}Base:${NC}       ${BASE}"
     echo ""
     if [[ -r /etc/os-release ]]; then
@@ -81,7 +81,7 @@ cmd_update() {
 }
 
 cmd_version() {
-    echo "ATLAZES OS ${VERSION}"
+    echo "ATLAZUS OS ${VERSION}"
 }
 
 # ── التحويل للأمر المناسب ────────────────────────────────────────────────────
@@ -97,19 +97,19 @@ case "${1:-help}" in
         ;;
     firewall|fw)
         shift
-        if command -v atlazes-firewall &>/dev/null; then
-            atlazes-firewall "$@"
+        if command -v atlazus-firewall &>/dev/null; then
+            atlazus-firewall "$@"
         else
-            echo "خطأ: atlazes-firewall غير مثبّت" >&2
+            echo "خطأ: atlazus-firewall غير مثبّت" >&2
             exit 1
         fi
         ;;
     privacy)
         shift
-        if command -v atlazes-privacy &>/dev/null; then
-            atlazes-privacy "$@"
+        if command -v atlazus-privacy &>/dev/null; then
+            atlazus-privacy "$@"
         else
-            echo "خطأ: atlazes-privacy غير مثبّت" >&2
+            echo "خطأ: atlazus-privacy غير مثبّت" >&2
             exit 1
         fi
         ;;

@@ -1,13 +1,13 @@
 #!/bin/bash
 # =============================================================================
-# ATLAZES OS — أدوات الخصوصية (MAC randomization, DNS, Tor)
+# ATLAZUS OS — أدوات الخصوصية (MAC randomization, DNS, Tor)
 # =============================================================================
 
 set -e
 
 usage() {
     cat <<EOF
-Usage: atlazes-privacy <command> [args]
+Usage: atlazus-privacy <command> [args]
 
 Commands:
   status                   عرض حالة الخصوصية الحالية
@@ -26,7 +26,7 @@ default_iface() {
 }
 
 cmd_status() {
-    echo "─── ATLAZES Privacy Status ──────────────────────────"
+    echo "─── ATLAZUS Privacy Status ──────────────────────────"
     echo ""
     echo "MAC addresses:"
     for f in /sys/class/net/*/address; do
@@ -78,12 +78,12 @@ cmd_mac_restore() {
 }
 
 cmd_dns() {
-    if [[ -x /usr/local/bin/atlazes-dns ]]; then
-        sudo /usr/local/bin/atlazes-dns apply
+    if [[ -x /usr/local/bin/atlazus-dns ]]; then
+        sudo /usr/local/bin/atlazus-dns apply
     else
         echo "تطبيق DNS خاص (Quad9 + Cloudflare)..."
         sudo tee /etc/resolv.conf > /dev/null <<DNS
-# ATLAZES OS - Privacy DNS
+# ATLAZUS OS - Privacy DNS
 nameserver 9.9.9.9
 nameserver 149.112.112.112
 nameserver 1.1.1.1
@@ -110,7 +110,7 @@ cmd_tor() {
             systemctl status tor --no-pager 2>/dev/null || true
             ;;
         *)
-            echo "Usage: atlazes-privacy tor [on|off|status]" >&2
+            echo "Usage: atlazus-privacy tor [on|off|status]" >&2
             exit 1
             ;;
     esac

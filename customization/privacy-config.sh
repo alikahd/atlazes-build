@@ -1,16 +1,16 @@
 #!/bin/bash
 # =============================================================================
-# ATLAZES OS - Privacy Configuration
+# ATLAZUS OS - Privacy Configuration
 # Firefox ESR policies + DNS privacy + MAC randomization
 # يُشغَّل داخل chroot
 # =============================================================================
 
 set -e
 
-echo "[ATLAZES] Applying privacy configuration..."
+echo "[ATLAZUS] Applying privacy configuration..."
 
 # ── Firefox ESR Privacy Policies ──────────────────────────────────────────────
-echo "[ATLAZES] Configuring Firefox ESR policies..."
+echo "[ATLAZUS] Configuring Firefox ESR policies..."
 
 # Firefox policies (enterprise deployment)
 mkdir -p /usr/lib/firefox-esr/distribution
@@ -87,14 +87,14 @@ cat > /usr/lib/firefox-esr/distribution/policies.json << 'FIREFOX'
 }
 FIREFOX
 
-echo "[ATLAZES] Firefox policies applied."
+echo "[ATLAZUS] Firefox policies applied."
 
 # ── DNS Privacy ───────────────────────────────────────────────────────────────
-echo "[ATLAZES] Configuring DNS privacy..."
+echo "[ATLAZUS] Configuring DNS privacy..."
 
 # إعداد resolv.conf للخصوصية (يمكن للمستخدم تغييره)
-cat > /etc/resolv.conf.atlazes << 'DNS'
-# ATLAZES OS - Privacy-focused DNS
+cat > /etc/resolv.conf.atlazus << 'DNS'
+# ATLAZUS OS - Privacy-focused DNS
 # Quad9 (malware blocking + privacy)
 nameserver 9.9.9.9
 nameserver 149.112.112.112
@@ -103,14 +103,14 @@ nameserver 1.1.1.1
 DNS
 
 # سكريبت لتطبيق DNS عند الإقلاع (اختياري)
-cat > /usr/local/bin/atlazes-dns << 'DNSSCRIPT'
+cat > /usr/local/bin/atlazus-dns << 'DNSSCRIPT'
 #!/bin/bash
-# ATLAZES OS - Apply privacy DNS
-# Usage: sudo atlazes-dns [apply|reset]
+# ATLAZUS OS - Apply privacy DNS
+# Usage: sudo atlazus-dns [apply|reset]
 
 case "${1:-apply}" in
     apply)
-        cp /etc/resolv.conf.atlazes /etc/resolv.conf
+        cp /etc/resolv.conf.atlazus /etc/resolv.conf
         echo "Privacy DNS applied (Quad9 + Cloudflare)"
         ;;
     reset)
@@ -118,22 +118,22 @@ case "${1:-apply}" in
         echo "DNS reset to default"
         ;;
     *)
-        echo "Usage: sudo atlazes-dns [apply|reset]"
+        echo "Usage: sudo atlazus-dns [apply|reset]"
         ;;
 esac
 DNSSCRIPT
-chmod +x /usr/local/bin/atlazes-dns
+chmod +x /usr/local/bin/atlazus-dns
 
-echo "[ATLAZES] DNS privacy configured."
+echo "[ATLAZUS] DNS privacy configured."
 
 # ── MAC Address Randomization ─────────────────────────────────────────────────
-echo "[ATLAZES] Configuring MAC randomization..."
+echo "[ATLAZUS] Configuring MAC randomization..."
 
 # NetworkManager MAC randomization
 mkdir -p /etc/NetworkManager/conf.d
 
-cat > /etc/NetworkManager/conf.d/99-atlazes-mac-random.conf << 'MAC'
-# ATLAZES OS - MAC Address Randomization
+cat > /etc/NetworkManager/conf.d/99-atlazus-mac-random.conf << 'MAC'
+# ATLAZUS OS - MAC Address Randomization
 [device]
 wifi.scan-rand-mac-address=yes
 
@@ -145,10 +145,10 @@ ethernet.cloned-mac-address=random
 uri=
 MAC
 
-echo "[ATLAZES] MAC randomization configured."
+echo "[ATLAZUS] MAC randomization configured."
 
 # ── Proxychains Configuration ─────────────────────────────────────────────────
-echo "[ATLAZES] Configuring proxychains..."
+echo "[ATLAZUS] Configuring proxychains..."
 
 if [[ -f /etc/proxychains4.conf ]]; then
     # تعديل proxychains لاستخدام Tor
@@ -157,10 +157,10 @@ if [[ -f /etc/proxychains4.conf ]]; then
     sed -i 's/^strict_chain/#strict_chain/' /etc/proxychains4.conf 2>/dev/null || true
 fi
 
-echo "[ATLAZES] Proxychains configured."
+echo "[ATLAZUS] Proxychains configured."
 
 # ── Tor Configuration ─────────────────────────────────────────────────────────
-echo "[ATLAZES] Configuring Tor..."
+echo "[ATLAZUS] Configuring Tor..."
 
 if [[ -d /etc/tor ]]; then
     # لا نُفعّل Tor تلقائياً — المستخدم يختار
@@ -169,13 +169,13 @@ if [[ -d /etc/tor ]]; then
     fi
 fi
 
-echo "[ATLAZES] Tor configured (disabled by default, user activates)."
+echo "[ATLAZUS] Tor configured (disabled by default, user activates)."
 
 # ── Privacy Sysctl ────────────────────────────────────────────────────────────
-echo "[ATLAZES] Applying privacy sysctl..."
+echo "[ATLAZUS] Applying privacy sysctl..."
 
-cat > /etc/sysctl.d/99-atlazes-privacy.conf << 'PRIVACY'
-# ATLAZES OS - Privacy sysctl
+cat > /etc/sysctl.d/99-atlazus-privacy.conf << 'PRIVACY'
+# ATLAZUS OS - Privacy sysctl
 
 # Hide kernel pointers from unprivileged users
 kernel.kptr_restrict = 2
@@ -187,4 +187,4 @@ kernel.dmesg_restrict = 1
 fs.suid_dumpable = 0
 PRIVACY
 
-echo "[ATLAZES] Privacy configuration complete."
+echo "[ATLAZUS] Privacy configuration complete."

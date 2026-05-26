@@ -1,5 +1,5 @@
 # =============================================================================
-# ATLAZES OS - Additional Packages
+# ATLAZUS OS - Additional Packages
 # Base: Debian Live XFCE already includes the desktop and core applications.
 #
 # Goal: keep the ISO private, secure, comfortable, and reasonably small.
