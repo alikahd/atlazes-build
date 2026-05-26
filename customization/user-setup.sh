@@ -9,24 +9,39 @@ set -e
 
 echo "[ATLAZES] Setting up user..."
 
-# ── إنشاء المستخدم atlazes ───────────────────────────────────────────────────
 USERNAME="atlazes"
 PASSWORD="atlazes"
 
-# التحقق إذا المستخدم موجود
+# ── حذف المستخدم الافتراضي لـ Debian Live ────────────────────────────────────
+# Debian Live ينشئ مستخدم "user" افتراضياً — نحذفه ونستبدله بـ atlazes
+for old_user in user debian live; do
+    if id "$old_user" &>/dev/null; then
+        echo "[ATLAZES] Removing default user '$old_user'..."
+        # إيقاف أي عمليات للمستخدم
+        pkill -u "$old_user" 2>/dev/null || true
+        # حذف المستخدم وملفاته
+        userdel -r "$old_user" 2>/dev/null || true
+        echo "[ATLAZES] User '$old_user' removed."
+    fi
+done
+
+# ── إنشاء المستخدم atlazes ───────────────────────────────────────────────────
 if id "$USERNAME" &>/dev/null; then
-    echo "[ATLAZES] User '$USERNAME' already exists, updating..."
+    echo "[ATLAZES] User '$USERNAME' already exists, updating password..."
     echo "${USERNAME}:${PASSWORD}" | chpasswd
 else
     echo "[ATLAZES] Creating user '$USERNAME'..."
     useradd -m -s /bin/bash \
-        -c "ATLAZES User" \
+        -c "ATLAZES OS User" \
         -G sudo,adm,cdrom,dip,plugdev,lpadmin \
         "$USERNAME"
     echo "${USERNAME}:${PASSWORD}" | chpasswd
 fi
 
-# إضافة للمجموعات الإضافية (إذا وُجدت)
+# تعيين كلمة مرور root أيضاً
+echo "root:${PASSWORD}" | chpasswd
+
+# إضافة للمجموعات الإضافية
 for group in audio video netdev bluetooth scanner; do
     if getent group "$group" &>/dev/null; then
         usermod -aG "$group" "$USERNAME" 2>/dev/null || true
@@ -35,51 +50,37 @@ done
 
 echo "[ATLAZES] User '$USERNAME' configured."
 
-# ── Sudo بدون كلمة مرور (Live session فقط) ───────────────────────────────────
-echo "[ATLAZES] Configuring sudo..."
-
+# ── Sudo بدون كلمة مرور ───────────────────────────────────────────────────────
 cat > /etc/sudoers.d/atlazes-live << 'SUDO'
-# ATLAZES OS - Live session sudo (passwordless)
-# يُحذف هذا الملف عند التثبيت بواسطة Calamares
 atlazes ALL=(ALL) NOPASSWD: ALL
 SUDO
 chmod 440 /etc/sudoers.d/atlazes-live
 
-echo "[ATLAZES] Sudo configured."
-
-# ── Autologin (Live session) ──────────────────────────────────────────────────
-echo "[ATLAZES] Configuring autologin..."
-
-# LightDM autologin — الطريقة الصحيحة لـ Debian Live
+# ── Autologin ─────────────────────────────────────────────────────────────────
 mkdir -p /etc/lightdm/lightdm.conf.d
 
 cat > /etc/lightdm/lightdm.conf.d/90-atlazes-autologin.conf << 'LIGHTDM'
 [Seat:*]
 autologin-user=atlazes
 autologin-user-timeout=0
+user-session=xfce
 LIGHTDM
 
-# إضافة المستخدم لمجموعة autologin
-groupadd -f autologin
-usermod -aG autologin "$USERNAME"
+# مجموعة autologin
+groupadd -f autologin 2>/dev/null || true
+usermod -aG autologin "$USERNAME" 2>/dev/null || true
 
-echo "[ATLAZES] Autologin configured for '$USERNAME'."
+echo "[ATLAZES] Autologin configured."
 
 # ── نسخ إعدادات skeleton ─────────────────────────────────────────────────────
-echo "[ATLAZES] Copying skeleton to user home..."
-
-# نسخ إعدادات XFCE من skeleton
 if [[ -d /etc/skel/.config ]]; then
     cp -r /etc/skel/.config "/home/${USERNAME}/" 2>/dev/null || true
     chown -R "${USERNAME}:${USERNAME}" "/home/${USERNAME}/.config" 2>/dev/null || true
 fi
 
-# ── Desktop icons for live session ────────────────────────────────────────────
-echo "[ATLAZES] Setting up desktop icons..."
-
+# ── Desktop icons ─────────────────────────────────────────────────────────────
 mkdir -p "/home/${USERNAME}/Desktop"
 
-# اختصار التثبيت على سطح المكتب
 cat > "/home/${USERNAME}/Desktop/install-atlazes.desktop" << 'DESKTOP'
 [Desktop Entry]
 Type=Application
@@ -92,31 +93,18 @@ Categories=System;
 DESKTOP
 chmod +x "/home/${USERNAME}/Desktop/install-atlazes.desktop"
 
-# ملف README
 cat > "/home/${USERNAME}/Desktop/README.txt" << 'README'
 ═══════════════════════════════════════════
         Welcome to ATLAZES OS 2.0
 ═══════════════════════════════════════════
 
-You are running ATLAZES OS in Live mode.
-All changes will be lost on reboot.
+Live mode — changes lost on reboot.
 
-To install permanently:
-  → Double-click "Install ATLAZES OS" on desktop
-  → Or run: sudo calamares
+Login: atlazes / atlazes
 
-Default credentials:
-  User: atlazes
-  Password: atlazes
+Install: double-click "Install ATLAZES OS"
 
-Security features enabled:
-  ✓ UFW Firewall (deny incoming)
-  ✓ AppArmor (enforce mode)
-  ✓ Firejail (Firefox sandboxed)
-  ✓ MAC randomization
-  ✓ Kernel hardening
-
-For more info: https://github.com/atlazes
+Security: UFW + AppArmor + Firejail active
 ═══════════════════════════════════════════
 README
 

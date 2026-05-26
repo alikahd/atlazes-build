@@ -218,6 +218,20 @@ apply_customizations() {
         cp -r "${CALAMARES_DIR}/"* "$CHROOT/tmp/calamares/"
     fi
 
+    # ── إصلاح APT sources قبل أي شيء ────────────────────────────────────────
+    # الـ ISO الرسمي يحتوي على مصدر file:/run/live/medium يُشير للـ DVD
+    # هذا المصدر غير موجود في chroot — يجب استبداله بمصادر الإنترنت
+    log "إصلاح APT sources..."
+    cat > "$CHROOT/etc/apt/sources.list" << 'SOURCES'
+deb http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian trixie-updates main contrib non-free non-free-firmware
+deb http://security.debian.org/debian-security trixie-security main contrib non-free non-free-firmware
+SOURCES
+
+    # حذف أي sources.list.d قد تُشير للـ DVD
+    rm -f "$CHROOT/etc/apt/sources.list.d/"*.list 2>/dev/null || true
+    rm -f "$CHROOT/etc/apt/sources.list.d/"*.sources 2>/dev/null || true
+
     # ── تشغيل التخصيصات داخل chroot ──────────────────────────────────────────
     log "تثبيت الحزم الإضافية..."
     chroot "$CHROOT" /bin/bash -c '
