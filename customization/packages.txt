@@ -69,3 +69,15 @@ papirus-icon-theme
 adwaita-icon-theme
 fonts-cantarell
 fonts-dejavu
+
+# Multi-language support
+locales
+locales-all
+xfce4-xkb-plugin
+ibus
+ibus-gtk3
+
+# Bluetooth
+bluez
+blueman
+pulseaudio-module-bluetooth
