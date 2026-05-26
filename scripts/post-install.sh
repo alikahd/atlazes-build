@@ -19,6 +19,10 @@ warn()    { echo -e "${YELLOW}[!]${NC} $*"; }
 error()   { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 section() { echo -e "\n${CYAN}${BOLD}── $* ──${NC}\n"; }
 
+service_exists() {
+    systemctl list-unit-files "$1.service" &>/dev/null
+}
+
 [[ $EUID -ne 0 ]] && error "Run as root: sudo ./post-install.sh"
 
 # ─── Parse flags ──────────────────────────────────────────────────────────────
@@ -108,18 +112,22 @@ log "AppArmor configured."
 
 # ─── Fail2ban ─────────────────────────────────────────────────────────────────
 section "Configuring Fail2ban"
-systemctl enable fail2ban
-systemctl start fail2ban
-log "Fail2ban enabled."
+if service_exists fail2ban; then
+    systemctl enable fail2ban
+    systemctl start fail2ban
+    log "Fail2ban enabled."
+else
+    warn "Fail2ban is not installed in the lightweight profile; skipping."
+fi
 
 # ─── dnscrypt-proxy ───────────────────────────────────────────────────────────
 section "Configuring Encrypted DNS"
-systemctl enable dnscrypt-proxy
-systemctl start dnscrypt-proxy 2>/dev/null || warn "dnscrypt-proxy failed to start (will retry on reboot)"
+if service_exists dnscrypt-proxy; then
+    systemctl enable dnscrypt-proxy
+    systemctl start dnscrypt-proxy 2>/dev/null || warn "dnscrypt-proxy failed to start (will retry on reboot)"
 
-# FIXED: Do NOT use chattr +i on resolv.conf
-# Set it to point to dnscrypt-proxy, but leave it writable for VPN/NM
-cat > /etc/resolv.conf << 'EOF'
+    # Do not use chattr +i on resolv.conf; VPN and NetworkManager may need to update it.
+    cat > /etc/resolv.conf << 'EOF'
 # ATLAZES OS - DNS via dnscrypt-proxy
 # DNS queries are encrypted in transit to the resolver.
 # The resolver (Quad9/Cloudflare) still receives queries in plaintext.
@@ -128,7 +136,10 @@ cat > /etc/resolv.conf << 'EOF'
 nameserver 127.0.0.1
 options edns0 trust-ad
 EOF
-log "DNS configured via dnscrypt-proxy (resolv.conf writable for VPN compatibility)."
+    log "DNS configured via dnscrypt-proxy (resolv.conf writable for VPN compatibility)."
+else
+    warn "dnscrypt-proxy is not installed; keeping NetworkManager/ATLAZES privacy DNS defaults."
+fi
 
 # ─── Add current user to proc group (for hidepid=2) ──────────────────────────
 section "Configuring /proc Access"
@@ -143,27 +154,36 @@ done < /etc/passwd
 
 # ─── ClamAV ───────────────────────────────────────────────────────────────────
 section "Configuring ClamAV"
-systemctl stop clamav-freshclam 2>/dev/null || true
-freshclam 2>/dev/null && log "ClamAV signatures updated." || \
-    warn "ClamAV update failed (no internet?)"
-systemctl enable clamav-daemon
-systemctl enable clamav-freshclam
-systemctl start clamav-daemon 2>/dev/null || true
-log "ClamAV configured."
+if command -v freshclam &>/dev/null && service_exists clamav-daemon; then
+    systemctl stop clamav-freshclam 2>/dev/null || true
+    freshclam 2>/dev/null && log "ClamAV signatures updated." || \
+        warn "ClamAV update failed (no internet?)"
+    systemctl enable clamav-daemon
+    systemctl enable clamav-freshclam 2>/dev/null || true
+    systemctl start clamav-daemon 2>/dev/null || true
+    log "ClamAV configured."
+else
+    warn "ClamAV is optional and not installed in the lightweight profile; skipping."
+fi
 
 # ─── rkhunter ─────────────────────────────────────────────────────────────────
 section "Configuring rkhunter"
-rkhunter --update 2>/dev/null || warn "rkhunter update failed (no internet?)"
-rkhunter --propupd 2>/dev/null || true
-log "rkhunter configured."
+if command -v rkhunter &>/dev/null; then
+    rkhunter --update 2>/dev/null || warn "rkhunter update failed (no internet?)"
+    rkhunter --propupd 2>/dev/null || true
+    log "rkhunter configured."
+else
+    warn "rkhunter is optional and not installed in the lightweight profile; skipping."
+fi
 
 # ─── AIDE ─────────────────────────────────────────────────────────────────────
 section "Initializing AIDE File Integrity Database"
-aideinit 2>/dev/null || warn "AIDE init failed"
-cp /var/lib/aide/aide.db.new /var/lib/aide/aide.db 2>/dev/null || true
+if command -v aideinit &>/dev/null && command -v aide &>/dev/null; then
+    aideinit 2>/dev/null || warn "AIDE init failed"
+    cp /var/lib/aide/aide.db.new /var/lib/aide/aide.db 2>/dev/null || true
 
-# Weekly AIDE check via systemd timer (not cron)
-cat > /etc/systemd/system/aide-check.service << 'EOF'
+    # Weekly AIDE check via systemd timer (not cron)
+    cat > /etc/systemd/system/aide-check.service << 'EOF'
 [Unit]
 Description=AIDE File Integrity Check
 After=network.target
@@ -187,15 +207,22 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
-systemctl daemon-reload
-systemctl enable aide-check.timer
-log "AIDE configured with weekly check timer."
+    systemctl daemon-reload
+    systemctl enable aide-check.timer
+    log "AIDE configured with weekly check timer."
+else
+    warn "AIDE is optional and not installed in the lightweight profile; skipping."
+fi
 
 # ─── TLP power management ─────────────────────────────────────────────────────
 section "Configuring TLP"
-systemctl enable tlp
-systemctl start tlp 2>/dev/null || true
-log "TLP power management enabled."
+if service_exists tlp; then
+    systemctl enable tlp
+    systemctl start tlp 2>/dev/null || true
+    log "TLP power management enabled."
+else
+    warn "TLP is not installed in the lightweight profile; skipping."
+fi
 
 # ─── StevenBlack hosts list (requires internet) ───────────────────────────────
 if [[ "$SKIP_HOSTS" == "false" ]]; then

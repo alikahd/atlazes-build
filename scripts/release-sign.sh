@@ -17,8 +17,10 @@ log()     { echo -e "${GREEN}[+]${NC} $*"; }
 warn()    { echo -e "${YELLOW}[!]${NC} $*"; }
 section() { echo -e "\n${CYAN}${BOLD}── $* ──${NC}\n"; }
 
-OUTPUT_DIR="$(dirname "$(realpath "$0")")/output"
-VERSION="1.0.0"
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+OUTPUT_DIR="${PROJECT_DIR}/output"
+VERSION="2.0.0"
 CODENAME="Horizon"
 GPG_KEY=""
 NO_GPG=false
@@ -99,7 +101,7 @@ section "Generating Release Manifest"
 cat > "${OUTPUT_DIR}/RELEASE.txt" << EOF
 ATLAZES OS v${VERSION} (${CODENAME})
 Release Date: $(date -u +"%Y-%m-%d")
-Base: Debian 12 (Bookworm)
+Base: Debian 13 (Trixie)
 Architecture: amd64
 
 EDITIONS:
@@ -129,20 +131,18 @@ SECURITY FEATURES:
   - Full disk encryption (LUKS2) available during install
   - AppArmor mandatory access control
   - UFW firewall (deny all incoming by default)
-  - Encrypted DNS via dnscrypt-proxy
+  - Privacy DNS preset (Quad9 + Cloudflare)
   - MAC address randomization
   - Hardened kernel parameters
   - Firejail application sandboxing
-  - Privacy modes: normal / private / paranoid
+  - Lightweight default package profile
 
 DOCUMENTATION:
-  docs/installation-guide.md
-  docs/first-boot-guide.md
-  docs/cli-guide.md
-  docs/troubleshooting.md
+  README.md
+  GitHub Releases
 
 SUPPORT:
-  https://atlazes.os/support
+  https://github.com/atlazes/atlazes-os/issues
 EOF
 
 log "Release manifest: RELEASE.txt"

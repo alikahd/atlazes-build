@@ -29,11 +29,9 @@ jobs:
       contents: write
 
     steps:
-      # ── 1. Checkout ──────────────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. تحرير مساحة القرص ─────────────────────────────────────────────────
       - name: Free disk space
         run: |
           echo "=== Disk before ==="
@@ -54,7 +52,6 @@ jobs:
           echo "=== Disk after ==="
           df -h /
 
-      # ── 3. تثبيت التبعيات ────────────────────────────────────────────────────
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
@@ -64,20 +61,17 @@ jobs:
             mtools dosfstools isolinux syslinux-common \
             rsync curl
 
-      # ── 4. التحقق من البيئة ──────────────────────────────────────────────────
       - name: Verify environment
         run: |
           echo "xorriso: $(xorriso --version 2>&1 | head -1)"
           echo "mksquashfs: $(mksquashfs -version 2>&1 | head -1)"
           df -h /
 
-      # ── 5. بناء ISO ─────────────────────────────────────────────────────────
       - name: Build ATLAZES OS ISO
         run: |
           chmod +x build.sh
           sudo ./build.sh build
 
-      # ── 6. عرض النتائج ───────────────────────────────────────────────────────
       - name: Show build results
         if: always()
         run: |
@@ -88,7 +82,6 @@ jobs:
           echo "=== Build log (last 80 lines) ==="
           tail -80 build.log 2>/dev/null || true
 
-      # ── 7. رفع ISO كـ artifact ──────────────────────────────────────────────
       - name: Upload ISO artifact
         if: success()
         uses: actions/upload-artifact@v4
@@ -100,7 +93,6 @@ jobs:
             output/*.md5
           retention-days: 30
 
-      # ── 8. رفع سجل البناء عند الفشل ─────────────────────────────────────────
       - name: Upload build log on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -109,8 +101,7 @@ jobs:
           path: build.log
           retention-days: 7
 
-      # ── 9. تقسيم ISO إذا كان أكبر من 2GB ──────────────────────────────────────
-      - name: Split ISO for GitHub Release (2GB limit)
+      - name: Split ISO for GitHub Release
         if: success()
         run: |
           ISO_FILE=$(find output/ -name "*.iso" | head -1)
@@ -123,29 +114,25 @@ jobs:
           MAX_SIZE=1900000000
 
           if [[ $ISO_SIZE -gt $MAX_SIZE ]]; then
-            echo "ISO is ${ISO_SIZE} bytes — splitting into parts..."
+            echo "ISO is ${ISO_SIZE} bytes; splitting into parts..."
             split -b 1900M "$ISO_FILE" "${ISO_FILE}.part"
             rm "$ISO_FILE"
-            echo "Parts created:"
             ls -lh output/*.part*
 
-            # إنشاء سكريبت لإعادة التجميع
             {
               echo '#!/bin/bash'
-              echo '# إعادة تجميع أجزاء ISO'
+              echo 'set -e'
               echo 'echo "Joining ISO parts..."'
               echo 'cat atlazes-os-*.iso.part* > atlazes-os-2.0.0-amd64.iso'
-              echo 'echo "Done! Verify with: sha256sum -c atlazes-os-*.sha256"'
+              echo 'echo "Done. Verify with: sha256sum -c atlazes-os-*.sha256"'
             } > output/JOIN-ISO.sh
             chmod +x output/JOIN-ISO.sh
 
-            # تحديث checksum
             cat output/*.iso.part* | sha256sum | awk '{print $1 "  atlazes-os-2.0.0-amd64.iso"}' > output/atlazes-os-2.0.0-amd64.iso.sha256
           else
-            echo "ISO is ${ISO_SIZE} bytes — no split needed."
+            echo "ISO is ${ISO_SIZE} bytes; no split needed."
           fi
 
-      # ── 10. إنشاء GitHub Release ────────────────────────────────────────────
       - name: Create GitHub Release
         if: >
           success() && (
@@ -161,34 +148,33 @@ jobs:
           body: |
             ## ATLAZES OS ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.event.inputs.release_tag }}
 
-            **القاعدة:** Debian 13 (Trixie) Live XFCE
-            **الطريقة:** ISO Remastering (Official Debian Live + ATLAZES customizations)
+            **Base:** Debian 13 (Trixie) Live XFCE
+            **Build method:** ISO remastering with ATLAZES branding, privacy, and hardening layers.
 
-            ### التحميل
-            إذا كان ISO مُقسَّم إلى أجزاء (`.partaa`, `.partab`, ...):
+            ### Download
+            If the ISO is split into parts (`.partaa`, `.partab`, ...), join it first:
             ```bash
-            # Linux/macOS:
             cat atlazes-os-*.iso.part* > atlazes-os.iso
-
-            # أو استخدم السكريبت:
+            # or:
             bash JOIN-ISO.sh
             ```
 
-            ### التحقق
+            ### Verify
             ```bash
             sha256sum -c atlazes-os-*.sha256
             ```
 
-            ### نسخ على USB
+            ### Write to USB
             ```bash
             sudo dd if=atlazes-os-*.iso of=/dev/sdX bs=4M status=progress oflag=sync
             ```
 
-            ### المميزات
-            - 🔒 Security hardening (kernel, AppArmor, UFW, audit)
-            - 🕵️ Privacy tools (Tor, MAC randomization, Firefox policies)
-            - 🛡️ Application sandboxing (Firejail)
-            - 💻 Calamares installer
+            ### Highlights
+            - ATLAZES boot, login, desktop, and installer branding
+            - Security hardening with AppArmor, UFW, Firejail, and sysctl defaults
+            - Privacy tools: Tor, proxychains, MAC randomization, metadata cleaning, Firefox policies
+            - Lightweight default package set; heavy scanners are optional after install
+            - Calamares graphical installer
           draft: false
           prerelease: ${{ contains(github.event.inputs.release_tag || github.ref_name, 'beta') || contains(github.event.inputs.release_tag || github.ref_name, 'rc') }}
           make_latest: true

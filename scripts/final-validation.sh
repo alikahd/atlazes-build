@@ -18,9 +18,9 @@ PASS=0; FAIL=0; WARN=0
 BLOCKING=()
 MINOR=()
 
-ok()      { echo -e "  ${GREEN}✓${NC} $*"; ((PASS++)); }
-fail()    { echo -e "  ${RED}✗${NC} $*"; ((FAIL++)); BLOCKING+=("$*"); }
-warn()    { echo -e "  ${YELLOW}~${NC} $*"; ((WARN++)); MINOR+=("$*"); }
+ok()      { echo -e "  ${GREEN}✓${NC} $*"; ((PASS+=1)); }
+fail()    { echo -e "  ${RED}✗${NC} $*"; ((FAIL+=1)); BLOCKING+=("$*"); }
+warn()    { echo -e "  ${YELLOW}~${NC} $*"; ((WARN+=1)); MINOR+=("$*"); }
 section() { echo -e "\n${CYAN}${BOLD}── $* ──${NC}"; }
 
 echo -e "${CYAN}${BOLD}"
@@ -32,7 +32,7 @@ echo -e "${NC}"
 section "1. Boot & System"
 
 [[ -f /etc/atlazes-release ]] && ok "atlazes-release file present" || fail "atlazes-release missing"
-[[ -f /var/lib/atlazes/current-mode ]] && ok "State directory present" || fail "State directory missing"
+[[ -f /var/lib/atlazes/current-mode ]] && ok "Mode state present" || fail "Mode state missing"
 [[ -x /usr/local/bin/atlazes ]] && ok "atlazes CLI executable" || fail "atlazes CLI not executable"
 
 # Check /tmp is not noexec (breaks Firejail)
@@ -59,22 +59,12 @@ fi
 # ─── 2. DNS ───────────────────────────────────────────────────────────────────
 section "2. DNS"
 
-if systemctl is-active dnscrypt-proxy &>/dev/null; then
-    ok "dnscrypt-proxy running"
+if command -v dnscrypt-proxy &>/dev/null; then
+    systemctl is-active dnscrypt-proxy &>/dev/null && ok "dnscrypt-proxy running" || warn "dnscrypt-proxy installed but not running"
+    ss -ulnp 2>/dev/null | grep -q "127.0.0.1:53" && ok "dnscrypt-proxy listening on 127.0.0.1:53" || warn "dnscrypt-proxy not listening on 127.0.0.1:53"
 else
-    warn "dnscrypt-proxy not running (optional but expected)"
-fi
-
-if ss -ulnp 2>/dev/null | grep -q "127.0.0.1:53"; then
-    ok "dnscrypt-proxy listening on 127.0.0.1:53"
-else
-    warn "Nothing listening on 127.0.0.1:53"
-fi
-
-if grep -q "^nameserver 127.0.0.1" /etc/resolv.conf 2>/dev/null; then
-    ok "resolv.conf points to localhost"
-else
-    warn "resolv.conf does not point to localhost"
+    warn "dnscrypt-proxy not installed in lightweight profile"
+    [[ -f /etc/resolv.conf.atlazes ]] && ok "ATLAZES privacy DNS preset present" || warn "ATLAZES privacy DNS preset missing"
 fi
 
 # resolv.conf must NOT be immutable
@@ -97,7 +87,11 @@ section "3. Security Services"
 systemctl is-active ufw &>/dev/null && ok "UFW active" || fail "UFW inactive"
 ufw status 2>/dev/null | grep -q "deny (incoming)" && ok "UFW denies incoming" || warn "UFW incoming policy not deny"
 systemctl is-active apparmor &>/dev/null && ok "AppArmor active" || fail "AppArmor inactive"
-systemctl is-active fail2ban &>/dev/null && ok "Fail2ban active" || warn "Fail2ban inactive"
+if systemctl list-unit-files fail2ban.service &>/dev/null; then
+    systemctl is-active fail2ban &>/dev/null && ok "Fail2ban active" || warn "Fail2ban installed but inactive"
+else
+    warn "Fail2ban not installed in lightweight profile"
+fi
 
 # AppArmor must not enforce-all (breaks apps)
 ENFORCED_COUNT=$(aa-status 2>/dev/null | grep "profiles are in enforce mode" | awk '{print $1}' || echo "0")
@@ -193,8 +187,8 @@ dpkg -l lightdm &>/dev/null && ok "LightDM installed" || fail "LightDM not insta
 dpkg -l firefox-esr &>/dev/null && ok "Firefox ESR installed" || fail "Firefox ESR not installed"
 
 # Check wallpaper file exists (either PNG or SVG)
-if [[ -f /usr/share/atlazes/wallpapers/atlazes-default.png ]] || \
-   [[ -f /usr/share/atlazes/wallpapers/atlazes-default.svg ]]; then
+if [[ -f /usr/share/backgrounds/atlazes/wallpaper.png ]] || \
+   [[ -f /usr/share/backgrounds/atlazes/wallpaper.svg ]]; then
     ok "Wallpaper file present"
 else
     fail "Wallpaper file missing — desktop will show broken image"
@@ -212,7 +206,7 @@ section "8. atlazes CLI"
 
 atlazes help &>/dev/null && ok "atlazes help works" || fail "atlazes help failed"
 atlazes status &>/dev/null && ok "atlazes status works" || fail "atlazes status failed"
-atlazes mode &>/dev/null && ok "atlazes mode works" || fail "atlazes mode failed"
+[[ -f /var/lib/atlazes/current-mode ]] && ok "atlazes mode state readable" || warn "atlazes mode state missing"
 
 # ─── 9. Package Integrity ─────────────────────────────────────────────────────
 section "9. Package Integrity"

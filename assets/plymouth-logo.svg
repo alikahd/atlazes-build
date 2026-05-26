@@ -1,41 +1,24 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!--
-  ATLAZES OS - Plymouth Boot Splash Logo (200x200 رئيسي، scalable)
-  شعار نقي بدون خلفية — Plymouth يعرضه فوق خلفية سوداء
--->
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ATLAZES OS - Plymouth mark, transparent-friendly -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="plyCyan" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%"   stop-color="#00d4ff"/>
-      <stop offset="100%" stop-color="#0099cc"/>
+    <linearGradient id="a" x1="14%" y1="10%" x2="88%" y2="90%">
+      <stop offset="0%" stop-color="#e0f2fe"/>
+      <stop offset="42%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
     </linearGradient>
-
-    <radialGradient id="plyGlow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%"   stop-color="#00d4ff" stop-opacity="0.30"/>
-      <stop offset="100%" stop-color="#00d4ff" stop-opacity="0"/>
+    <radialGradient id="g" cx="50%" cy="50%" r="58%">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.26"/>
+      <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
     </radialGradient>
   </defs>
-
-  <!-- توهّج خلفي -->
-  <circle cx="256" cy="256" r="240" fill="url(#plyGlow)"/>
-
-  <!-- المدار المائل -->
-  <ellipse cx="256" cy="256" rx="210" ry="74"
-           fill="none" stroke="url(#plyCyan)" stroke-width="7"
-           transform="rotate(-25 256 256)"/>
-
-  <!-- نقطة لامعة على المدار -->
-  <circle cx="256" cy="256" r="9" fill="#ffffff"
-          transform="translate(198 -74) rotate(-25 256 256)"/>
-
-  <!-- إطار دائري رفيع -->
-  <circle cx="256" cy="256" r="170"
-          fill="none" stroke="#00d4ff" stroke-width="1.5" opacity="0.40"/>
-
-  <!-- حرف A -->
-  <path d="M 256 130 L 168 360 L 200 360 L 220 305 L 292 305 L 312 360 L 344 360 Z"
-        fill="url(#plyCyan)"/>
-  <path d="M 256 195 L 232 275 L 280 275 Z" fill="#000000"/>
-  <rect x="232" y="285" width="48" height="6" fill="#ffffff"/>
-  <circle cx="256" cy="118" r="7" fill="#ffffff"/>
+  <circle cx="256" cy="256" r="226" fill="url(#g)"/>
+  <path d="M256 64 407 124v115c0 93-59 169-151 212C164 408 105 332 105 239V124Z"
+        fill="#07111f" fill-opacity="0.88" stroke="url(#a)" stroke-width="8"/>
+  <ellipse cx="256" cy="263" rx="186" ry="64" fill="none" stroke="url(#a)" stroke-width="7"
+           transform="rotate(-23 256 263)" opacity="0.9"/>
+  <circle cx="416" cy="190" r="9" fill="#f8fafc"/>
+  <path d="M256 132 160 374h52l18-52h52l18 52h52Z" fill="url(#a)"/>
+  <path d="M256 204 240 276h32Z" fill="#07111f"/>
+  <path d="M226 293h60" stroke="#f8fafc" stroke-width="10" stroke-linecap="round"/>
 </svg>

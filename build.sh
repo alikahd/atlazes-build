@@ -221,13 +221,16 @@ apply_customizations() {
     # ── تشغيل التخصيصات داخل chroot ──────────────────────────────────────────
     log "تثبيت الحزم الإضافية..."
     chroot "$CHROOT" /bin/bash -c '
+        set -e
         export DEBIAN_FRONTEND=noninteractive
         apt-get update -qq
 
-        # تثبيت الحزم من packages.txt
+        # تثبيت الحزم من packages.txt. لا نخفي الفشل هنا حتى لا ينتج ISO ناقص.
         if [[ -f /tmp/customization/packages.txt ]]; then
-            grep -v "^#" /tmp/customization/packages.txt | grep -v "^$" | \
-                xargs apt-get install -y --no-install-recommends 2>&1 || true
+            mapfile -t packages < <(grep -Ev "^[[:space:]]*(#|$)" /tmp/customization/packages.txt)
+            if [[ ${#packages[@]} -gt 0 ]]; then
+                apt-get install -y --no-install-recommends "${packages[@]}"
+            fi
         fi
 
         apt-get clean
@@ -274,6 +277,16 @@ apply_customizations() {
             fi
             if [[ -d /tmp/calamares/branding/atlazes ]]; then
                 cp -r /tmp/calamares/branding/atlazes/* /etc/calamares/branding/atlazes/ 2>/dev/null || true
+            fi
+            if [[ -f /usr/share/atlazes/logo.png ]]; then
+                cp -f /usr/share/atlazes/logo.png /etc/calamares/branding/atlazes/logo.png 2>/dev/null || true
+                cp -f /usr/share/atlazes/logo.png /etc/calamares/branding/atlazes/icon.png 2>/dev/null || true
+            fi
+            if [[ -f /usr/share/atlazes/logo.svg ]]; then
+                cp -f /usr/share/atlazes/logo.svg /etc/calamares/branding/atlazes/logo.svg 2>/dev/null || true
+            fi
+            if [[ -f /usr/share/backgrounds/atlazes/wallpaper.png ]]; then
+                cp -f /usr/share/backgrounds/atlazes/wallpaper.png /etc/calamares/branding/atlazes/welcome.png 2>/dev/null || true
             fi
         '
     fi
@@ -329,6 +342,62 @@ repack_squashfs() {
     log "حجم squashfs: $(du -sh "$new_squashfs" | awk '{print $1}')"
 }
 
+sanitize_boot_branding() {
+    local boot_dir="$1"
+
+    [[ -d "$boot_dir" ]] || return 0
+
+    find "$boot_dir" -type f \( -name "*.cfg" -o -name "*.conf" -o -name "*.txt" \) -exec \
+        sed -i \
+            -e "s|Debian GNU/Linux|ATLAZES OS|g" \
+            -e "s|Debian Live|ATLAZES OS Live|g" \
+            -e "s|Debian|ATLAZES OS|g" \
+            -e "s|debian-live|atlazes-os|g" \
+            -e "s|debian|atlazes|g" {} \; 2>/dev/null || true
+}
+
+inject_efi_branding() {
+    local efi_image="$1"
+    local theme_dir="$2"
+    local tmp_dir="${WORK_DIR}/efi-branding"
+
+    [[ -f "$efi_image" ]] || return 0
+    command -v mcopy &>/dev/null || {
+        warn "mcopy غير متوفر؛ سيتم تخطي حقن هوية ATLAZES داخل EFI image"
+        return 0
+    }
+
+    log "حقن هوية ATLAZES داخل EFI image..."
+    mkdir -p "$tmp_dir"
+
+    if [[ -d "$theme_dir" ]]; then
+        mmd -i "$efi_image" ::/boot 2>/dev/null || true
+        mmd -i "$efi_image" ::/boot/grub 2>/dev/null || true
+        mmd -i "$efi_image" ::/boot/grub/themes 2>/dev/null || true
+        mmd -i "$efi_image" ::/boot/grub/themes/atlazes 2>/dev/null || true
+        mcopy -o -s -i "$efi_image" "${theme_dir}/"* ::/boot/grub/themes/atlazes/ 2>/dev/null || true
+    fi
+
+    local cfg_path cfg_name tmp_cfg
+    for cfg_path in ::/boot/grub/grub.cfg ::/EFI/BOOT/grub.cfg ::/efi/boot/grub.cfg; do
+        cfg_name="$(basename "$cfg_path")"
+        tmp_cfg="${tmp_dir}/${cfg_name}"
+        rm -f "$tmp_cfg"
+        if mcopy -i "$efi_image" "$cfg_path" "$tmp_cfg" 2>/dev/null; then
+            sed -i \
+                -e "s|Debian GNU/Linux|ATLAZES OS|g" \
+                -e "s|Debian Live|ATLAZES OS Live|g" \
+                -e "s|Debian|ATLAZES OS|g" \
+                -e "s|debian-live|atlazes-os|g" \
+                -e "s|debian|atlazes|g" "$tmp_cfg" 2>/dev/null || true
+            if ! grep -q "themes/atlazes" "$tmp_cfg" && [[ -d "$theme_dir" ]]; then
+                sed -i '1i set theme=/boot/grub/themes/atlazes/theme.txt\nexport theme' "$tmp_cfg" 2>/dev/null || true
+            fi
+            mcopy -o -i "$efi_image" "$tmp_cfg" "$cfg_path" 2>/dev/null || true
+        fi
+    done
+}
+
 # ── 6. بناء ISO جديد ─────────────────────────────────────────────────────────
 build_iso() {
     section "بناء ISO جديد"
@@ -351,6 +420,7 @@ build_iso() {
     # تحديث GRUB configs الفرعية
     find "${new_iso_dir}/boot/grub" -name "*.cfg" -exec \
         sed -i "s|Debian GNU/Linux|ATLAZES OS|g; s|Debian Live|ATLAZES OS Live|g" {} \; 2>/dev/null || true
+    sanitize_boot_branding "${new_iso_dir}/boot"
 
     # نسخ ATLAZES GRUB theme إلى ISO نفسه (للقائمة عند الإقلاع من ISO)
     # الملفات موجودة في overlay/upper بعد تطبيق branding.sh (قبل/بعد unmount)
@@ -383,7 +453,9 @@ build_iso() {
     # استبدال خلفية GRUB القديمة (إن وُجدت) بخلفيتنا
     if [[ -f "${new_iso_dir}/boot/grub/themes/atlazes/background.png" ]]; then
         for old_bg in "${new_iso_dir}/boot/grub/splash.png" \
-                      "${new_iso_dir}/isolinux/splash.png"; do
+                      "${new_iso_dir}/boot/grub/debian.png" \
+                      "${new_iso_dir}/isolinux/splash.png" \
+                      "${new_iso_dir}/isolinux/debian.png"; do
             if [[ -f "$old_bg" ]]; then
                 cp -f "${new_iso_dir}/boot/grub/themes/atlazes/background.png" "$old_bg"
             fi
@@ -398,6 +470,7 @@ build_iso() {
     # تحديث menu.cfg إذا وُجد
     find "${new_iso_dir}/isolinux" -name "*.cfg" -exec \
         sed -i "s/Debian GNU\/Linux/ATLAZES OS/g" {} \; 2>/dev/null || true
+    sanitize_boot_branding "${new_iso_dir}/isolinux"
 
     # بناء ISO
     log "بناء ISO بـ xorriso..."
@@ -414,6 +487,10 @@ build_iso() {
         efi_img="boot/grub/efi.img"
     elif [[ -f "${new_iso_dir}/EFI/boot/efiboot.img" ]]; then
         efi_img="EFI/boot/efiboot.img"
+    fi
+
+    if [[ -n "$efi_img" ]]; then
+        inject_efi_branding "${new_iso_dir}/${efi_img}" "${new_iso_dir}/boot/grub/themes/atlazes"
     fi
 
     # بناء ISO مع دعم BIOS + UEFI

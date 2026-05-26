@@ -436,6 +436,10 @@ Build: ISO Remastering
 Focus: Security · Privacy · Professional UX
 AREL
 
+mkdir -p /var/lib/atlazes
+echo "normal" > /var/lib/atlazes/current-mode
+chmod 644 /var/lib/atlazes/current-mode
+
 # lsb-release
 cat > /etc/lsb-release <<'LSB'
 DISTRIB_ID=ATLAZES

@@ -143,7 +143,7 @@ ethernet.cloned-mac-address=random
 
 [connectivity]
 uri=
-NMAC
+MAC
 
 echo "[ATLAZES] MAC randomization configured."
 

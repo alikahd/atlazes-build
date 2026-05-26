@@ -1,83 +1,54 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!--
-  ATLAZES OS - GRUB Boot Menu Background (1920x1080)
-  داكنة جداً مع شعار في الأعلى — تترك مساحة للقائمة في المنتصف
--->
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ATLAZES OS - GRUB background with clear menu area -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
   <defs>
-    <linearGradient id="grubBg" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%"   stop-color="#0a0e27"/>
-      <stop offset="50%"  stop-color="#0d1230"/>
-      <stop offset="100%" stop-color="#05071a"/>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#020617"/>
+      <stop offset="62%" stop-color="#07111f"/>
+      <stop offset="100%" stop-color="#00030a"/>
     </linearGradient>
-
-    <linearGradient id="cyanGrad3" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%"   stop-color="#00d4ff"/>
-      <stop offset="100%" stop-color="#0099cc"/>
+    <radialGradient id="topGlow" cx="50%" cy="24%" r="58%">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.20"/>
+      <stop offset="100%" stop-color="#020617" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#67e8f9" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#2dd4bf" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="20%" y1="0%" x2="84%" y2="100%">
+      <stop offset="0%" stop-color="#e0f2fe"/>
+      <stop offset="48%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
     </linearGradient>
   </defs>
 
-  <!-- الخلفية -->
-  <rect width="1920" height="1080" fill="url(#grubBg)"/>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <rect width="1920" height="1080" fill="url(#topGlow)"/>
+  <line x1="380" y1="286" x2="1540" y2="286" stroke="url(#accent)" stroke-width="2" opacity="0.72"/>
+  <line x1="500" y1="792" x2="1420" y2="792" stroke="url(#accent)" stroke-width="1" opacity="0.34"/>
 
-  <!-- خطوط قرارية في الأعلى -->
-  <g stroke="#00d4ff" stroke-width="1" opacity="0.15">
-    <line x1="0" y1="60" x2="1920" y2="60"/>
-    <line x1="0" y1="280" x2="1920" y2="280"/>
+  <g transform="translate(960 154)">
+    <path d="M0-82 57-59v44C57 20 35 50 0 67-35 50-57 20-57-15v-44Z"
+          fill="#07111f" stroke="url(#mark)" stroke-width="5"/>
+    <ellipse cx="0" cy="-4" rx="76" ry="25" fill="none" stroke="url(#mark)" stroke-width="4"
+             transform="rotate(-23)" opacity="0.95"/>
+    <path d="M0-50-34 36h18l7-18H9l7 18h18Z" fill="url(#mark)"/>
+    <path d="M0-25-6 1H6Z" fill="#07111f"/>
+    <path d="M-10 8h20" stroke="#f8fafc" stroke-width="4" stroke-linecap="round"/>
   </g>
 
-  <!-- ─── الشعار في الأعلى ─────────────────────────────────────────────── -->
-  <g transform="translate(960 170)">
-    <g transform="translate(-80 -80) scale(0.32)">
-      <circle cx="256" cy="256" r="240" fill="#0a0e27"/>
-      <ellipse cx="256" cy="256" rx="220" ry="78"
-               fill="none" stroke="url(#cyanGrad3)" stroke-width="8"
-               transform="rotate(-25 256 256)"/>
-      <circle cx="256" cy="256" r="8" fill="#ffffff"
-              transform="translate(208 -78) rotate(-25 256 256)"/>
-      <circle cx="256" cy="256" r="178"
-              fill="none" stroke="#00d4ff" stroke-width="2" opacity="0.40"/>
-      <path d="M 256 130 L 168 360 L 200 360 L 220 305 L 292 305 L 312 360 L 344 360 Z"
-            fill="url(#cyanGrad3)"/>
-      <path d="M 256 195 L 232 275 L 280 275 Z" fill="#0a0e27"/>
-      <rect x="232" y="285" width="48" height="6" fill="#ffffff"/>
-      <circle cx="256" cy="118" r="7" fill="#ffffff"/>
-    </g>
-  </g>
+  <text x="960" y="264" font-family="DejaVu Sans, Cantarell, sans-serif"
+        font-size="44" font-weight="700" fill="#e0f2fe" text-anchor="middle"
+        letter-spacing="10">ATLAZES OS</text>
+  <text x="960" y="324" font-family="DejaVu Sans, Cantarell, sans-serif"
+        font-size="13" font-weight="400" fill="#67e8f9" text-anchor="middle"
+        letter-spacing="5" opacity="0.66">SECURE BOOT EXPERIENCE</text>
 
-  <!-- اسم النظام -->
-  <text x="960" y="320"
-        font-family="'DejaVu Sans','Cantarell',sans-serif"
-        font-size="44" font-weight="700"
-        fill="#00d4ff" text-anchor="middle"
-        letter-spacing="14">ATLAZES OS</text>
-
-  <!-- شعار/tagline -->
-  <text x="960" y="358"
-        font-family="'DejaVu Sans',sans-serif"
-        font-size="14" font-weight="300"
-        fill="#ffffff" text-anchor="middle"
-        letter-spacing="6" opacity="0.55">SECURE  ·  PRIVATE  ·  PROFESSIONAL</text>
-
-  <!-- إصدار -->
-  <text x="960" y="385"
-        font-family="'DejaVu Sans',sans-serif"
-        font-size="12" font-weight="300"
-        fill="#00d4ff" text-anchor="middle"
-        letter-spacing="4" opacity="0.45">VERSION 2.0  ·  HORIZON</text>
-
-  <!-- نصّ سفلي رفيع -->
-  <text x="960" y="1040"
-        font-family="'DejaVu Sans',sans-serif"
-        font-size="11" font-weight="300"
-        fill="#00d4ff" text-anchor="middle"
-        letter-spacing="3" opacity="0.30">USE ↑ ↓ TO NAVIGATE  ·  ENTER TO SELECT</text>
-
-  <!-- زخارف الزوايا -->
-  <g stroke="#00d4ff" stroke-width="1.5" fill="none" opacity="0.30">
-    <path d="M 40 40 L 40 90 L 90 90"/>
-    <path d="M 1880 40 L 1880 90 L 1830 90"/>
-    <path d="M 40 1040 L 40 990 L 90 990"/>
-    <path d="M 1880 1040 L 1880 990 L 1830 990"/>
+  <g stroke="#22d3ee" stroke-width="1.5" fill="none" opacity="0.28">
+    <path d="M54 54h76M54 54v76"/>
+    <path d="M1866 54h-76M1866 54v76"/>
+    <path d="M54 1026h76M54 1026v-76"/>
+    <path d="M1866 1026h-76M1866 1026v-76"/>
   </g>
 </svg>

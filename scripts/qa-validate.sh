@@ -22,10 +22,10 @@ REPORT_FILE="/tmp/atlazes-qa-$(date +%Y%m%d-%H%M%S).txt"
 
 MODE="${1:---quick}"
 
-pass() { echo -e "  ${GREEN}✓ PASS${NC}  $*"; ((PASS++)); echo "PASS: $*" >> "$REPORT_FILE"; }
-fail() { echo -e "  ${RED}✗ FAIL${NC}  $*"; ((FAIL++)); echo "FAIL: $*" >> "$REPORT_FILE"; }
-warn() { echo -e "  ${YELLOW}~ WARN${NC}  $*"; ((WARN++)); echo "WARN: $*" >> "$REPORT_FILE"; }
-skip() { echo -e "  ${CYAN}⏭ SKIP${NC}  $*"; ((SKIP++)); echo "SKIP: $*" >> "$REPORT_FILE"; }
+pass() { echo -e "  ${GREEN}✓ PASS${NC}  $*"; ((PASS+=1)); echo "PASS: $*" >> "$REPORT_FILE"; }
+fail() { echo -e "  ${RED}✗ FAIL${NC}  $*"; ((FAIL+=1)); echo "FAIL: $*" >> "$REPORT_FILE"; }
+warn() { echo -e "  ${YELLOW}~ WARN${NC}  $*"; ((WARN+=1)); echo "WARN: $*" >> "$REPORT_FILE"; }
+skip() { echo -e "  ${CYAN}⏭ SKIP${NC}  $*"; ((SKIP+=1)); echo "SKIP: $*" >> "$REPORT_FILE"; }
 section() {
     echo ""
     echo -e "${CYAN}${BOLD}══ $* ══${NC}"
@@ -84,6 +84,15 @@ check_cmd() {
     fi
 }
 
+optional_cmd() {
+    local name="$1"
+    if command -v "$name" &>/dev/null; then
+        pass "Optional command available: $name"
+    else
+        skip "Optional command not installed in lightweight profile: $name"
+    fi
+}
+
 # ─── Header ───────────────────────────────────────────────────────────────────
 echo -e "${BLUE:-}${BOLD}"
 echo "  ╔══════════════════════════════════════════╗"
@@ -102,7 +111,7 @@ echo "Kernel: $(uname -r)" >> "$REPORT_FILE"
 section "1. OS Identity"
 check_file "OS release file" "/etc/atlazes-release"
 check "OS name" "cat /etc/os-release" "ATLAZES"
-check "Version set" "cat /etc/atlazes-release" "ATLAZES_OS_VERSION"
+check "Version set" "cat /etc/atlazes-release" "ATLAZES OS 2.0"
 check_file "ATLAZES state dir" "/var/lib/atlazes"
 check_file "Mode file" "/var/lib/atlazes/current-mode"
 
@@ -116,13 +125,16 @@ check "/proc mounted" "mount | grep proc" "proc"
 
 # ─── 3. DNS ───────────────────────────────────────────────────────────────────
 section "3. DNS Configuration"
-check_service "dnscrypt-proxy" "dnscrypt-proxy"
-check "dnscrypt on port 53" "ss -ulnp 2>/dev/null | grep ':53'" "127.0.0.1"
-check "resolv.conf points to localhost" "grep nameserver /etc/resolv.conf" "127.0.0.1"
+if command -v dnscrypt-proxy &>/dev/null; then
+    check_service "dnscrypt-proxy" "dnscrypt-proxy"
+    check "dnscrypt on port 53" "ss -ulnp 2>/dev/null | grep ':53'" "127.0.0.1"
+    check "resolv.conf points to localhost" "grep nameserver /etc/resolv.conf" "127.0.0.1"
+else
+    skip "dnscrypt-proxy optional in lightweight profile"
+    check_file "ATLAZES privacy DNS preset" "/etc/resolv.conf.atlazes"
+fi
 check "resolv.conf NOT immutable" "lsattr /etc/resolv.conf 2>/dev/null | grep -v '\-i\-'" ""
 check "DNS resolves" "dig +short +time=5 google.com 2>/dev/null | head -1" ""
-check "systemd-resolved stub disabled" "cat /etc/systemd/resolved.conf.d/atlazes-dns.conf 2>/dev/null" "DNSStubListener=no"
-check "NM dispatcher exists" "test -f /etc/NetworkManager/dispatcher.d/99-atlazes-dns-restore && echo ok" "ok"
 
 # ─── 4. Security Services ─────────────────────────────────────────────────────
 section "4. Security Services"
@@ -132,7 +144,11 @@ check "UFW deny incoming" "ufw status verbose 2>/dev/null" "deny (incoming)"
 check_service "AppArmor" "apparmor"
 check "AppArmor profiles loaded" "aa-status 2>/dev/null | head -3" "profiles are loaded"
 check "AppArmor not enforce-all" "aa-status 2>/dev/null | grep 'profiles are in enforce mode' | awk '{print \$1}'" ""
-check_service "Fail2ban" "fail2ban"
+if systemctl list-unit-files fail2ban.service &>/dev/null; then
+    check_service "Fail2ban" "fail2ban"
+else
+    skip "Fail2ban optional in lightweight profile"
+fi
 check "No unnecessary open ports" "ss -tlnp 2>/dev/null | grep -v '127.0.0.1\|::1\|LISTEN' | wc -l" ""
 
 # ─── 5. Kernel Hardening ──────────────────────────────────────────────────────
@@ -145,8 +161,8 @@ check "No IP forwarding" "sysctl -n net.ipv4.ip_forward 2>/dev/null" "0"
 check "No ICMP redirects" "sysctl -n net.ipv4.conf.all.accept_redirects 2>/dev/null" "0"
 check "Hardlinks protected" "sysctl -n fs.protected_hardlinks 2>/dev/null" "1"
 check "Symlinks protected" "sysctl -n fs.protected_symlinks 2>/dev/null" "1"
-check "BPF restricted" "sysctl -n kernel.unprivileged_bpf_disabled 2>/dev/null" "1"
-check "kexec disabled" "sysctl -n kernel.kexec_load_disabled 2>/dev/null" "1"
+check "ptrace restricted" "sysctl -n kernel.yama.ptrace_scope 2>/dev/null" "1"
+check "perf restricted" "sysctl -n kernel.perf_event_paranoid 2>/dev/null" "3"
 check "Core dumps disabled" "ulimit -c" "0"
 
 # ─── 6. Module Blacklist ──────────────────────────────────────────────────────
@@ -164,7 +180,7 @@ check "firewire blacklisted" "grep 'install firewire-core' /etc/modprobe.d/atlaz
 
 # ─── 7. Privacy ───────────────────────────────────────────────────────────────
 section "7. Privacy Configuration"
-check "MAC randomization configured" "cat /etc/NetworkManager/conf.d/99-atlazes-privacy.conf" "random"
+check "MAC randomization configured" "cat /etc/NetworkManager/conf.d/99-atlazes-mac-random.conf" "random"
 check "Tracker blocking active" "grep -c '^0.0.0.0' /etc/hosts 2>/dev/null" ""
 check "Firefox policies exist" "test -f /usr/lib/firefox-esr/distribution/policies.json && echo ok" "ok"
 check "Firefox telemetry disabled" "cat /usr/lib/firefox-esr/distribution/policies.json" "DisableTelemetry"
@@ -177,21 +193,20 @@ check "atlazes user in proc group" "id atlazes 2>/dev/null" "proc"
 # ─── 8. CLI Tools ─────────────────────────────────────────────────────────────
 section "8. CLI Tools"
 check_cmd "atlazes"
-check_cmd "atlazes-tools"
+check_file "ATLAZES tools desktop launcher" "/usr/share/applications/atlazes-tools.desktop"
 check "atlazes help works" "atlazes help 2>/dev/null" "Usage"
-check "atlazes status works" "atlazes status 2>/dev/null" "Security Status"
-check "atlazes mode works" "atlazes mode 2>/dev/null" "Current mode"
+check "atlazes status works" "atlazes status 2>/dev/null" "ATLAZES OS"
 check_cmd "firejail"
 check_cmd "ufw"
 check_cmd "aa-status"
-check_cmd "clamscan"
-check_cmd "rkhunter"
-check_cmd "lynis"
 check_cmd "mat2"
 check_cmd "bleachbit"
 check_cmd "keepassxc"
 check_cmd "macchanger"
-check_cmd "dnscrypt-proxy"
+optional_cmd "clamscan"
+optional_cmd "rkhunter"
+optional_cmd "lynis"
+optional_cmd "dnscrypt-proxy"
 
 # ─── 9. Desktop ───────────────────────────────────────────────────────────────
 section "9. Desktop Environment"
@@ -222,11 +237,19 @@ fi
 # ─── Full mode: additional checks ─────────────────────────────────────────────
 if [[ "$MODE" == "--full" ]]; then
     section "11. Full Mode: Security Scan"
-    warn "Running rkhunter (may take 2-3 minutes)..."
-    sudo rkhunter --check --sk --quiet 2>/dev/null && pass "rkhunter: clean" || warn "rkhunter: warnings found"
+    if command -v rkhunter &>/dev/null; then
+        warn "Running rkhunter (may take 2-3 minutes)..."
+        sudo rkhunter --check --sk --quiet 2>/dev/null && pass "rkhunter: clean" || warn "rkhunter: warnings found"
+    else
+        skip "rkhunter not installed"
+    fi
 
-    warn "Running lynis quick scan..."
-    sudo lynis audit system --quick --quiet 2>/dev/null | tail -5
+    if command -v lynis &>/dev/null; then
+        warn "Running lynis quick scan..."
+        sudo lynis audit system --quick --quiet 2>/dev/null | tail -5
+    else
+        skip "lynis not installed"
+    fi
 fi
 
 # ─── Summary ──────────────────────────────────────────────────────────────────

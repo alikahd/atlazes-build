@@ -1,61 +1,53 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!--
-  ATLAZES OS - Official Logo
-  حرف A منمنم داخل دائرة مع مدار مضيء (atlas/orbit metaphor)
-  ألوان الهوية: #0a0e27 (داكن) / #00d4ff (سماوي) / #ffffff (أبيض)
-  Flat design — قابل للتكبير لأي حجم بدون فقد دقّة
--->
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ATLAZES OS - Modern identity mark -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <!-- تدرّج الخلفية الداكنة -->
-    <radialGradient id="bgGrad" cx="50%" cy="45%" r="60%">
-      <stop offset="0%"   stop-color="#1a2148"/>
-      <stop offset="100%" stop-color="#0a0e27"/>
-    </radialGradient>
-
-    <!-- تدرّج الشعاع السماوي -->
-    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%"   stop-color="#00d4ff"/>
-      <stop offset="100%" stop-color="#0099cc"/>
+    <linearGradient id="bg" x1="18%" y1="8%" x2="88%" y2="94%">
+      <stop offset="0%" stop-color="#111827"/>
+      <stop offset="52%" stop-color="#07111f"/>
+      <stop offset="100%" stop-color="#020617"/>
     </linearGradient>
-
-    <!-- توهّج خفيف حول الشعار -->
-    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%"   stop-color="#00d4ff" stop-opacity="0.35"/>
-      <stop offset="60%"  stop-color="#00d4ff" stop-opacity="0.06"/>
-      <stop offset="100%" stop-color="#00d4ff" stop-opacity="0"/>
+    <linearGradient id="aurora" x1="12%" y1="10%" x2="92%" y2="80%">
+      <stop offset="0%" stop-color="#67e8f9"/>
+      <stop offset="44%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
+    </linearGradient>
+    <linearGradient id="steel" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#e5f7ff"/>
+      <stop offset="38%" stop-color="#a7f3d0"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="44%" r="58%">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.34"/>
+      <stop offset="58%" stop-color="#14b8a6" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#020617" stop-opacity="0"/>
     </radialGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000814" flood-opacity="0.45"/>
+    </filter>
   </defs>
 
-  <!-- القرص الأساسي (الكوكب) -->
-  <circle cx="256" cy="256" r="240" fill="url(#bgGrad)"/>
+  <circle cx="256" cy="256" r="238" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="224" fill="url(#glow)"/>
 
-  <!-- توهّج داخلي ناعم -->
-  <circle cx="256" cy="256" r="220" fill="url(#glow)"/>
+  <path d="M256 54 413 116v119c0 98-62 178-157 223C161 413 99 333 99 235V116Z"
+        fill="#07111f" stroke="url(#aurora)" stroke-width="8" filter="url(#softShadow)"/>
+  <path d="M256 82 384 132v101c0 79-48 147-128 187-80-40-128-108-128-187V132Z"
+        fill="none" stroke="#e5f7ff" stroke-opacity="0.12" stroke-width="2"/>
 
-  <!-- المدار الخارجي المائل (atlas ring) -->
-  <ellipse cx="256" cy="256" rx="220" ry="78"
-           fill="none" stroke="url(#cyanGrad)" stroke-width="6"
-           transform="rotate(-25 256 256)" opacity="0.95"/>
+  <ellipse cx="256" cy="263" rx="190" ry="66" fill="none"
+           stroke="url(#aurora)" stroke-width="7" opacity="0.92"
+           transform="rotate(-23 256 263)"/>
+  <ellipse cx="256" cy="263" rx="154" ry="50" fill="none"
+           stroke="#e0f2fe" stroke-width="1.5" opacity="0.18"
+           transform="rotate(-23 256 263)"/>
+  <circle cx="420" cy="189" r="9" fill="#f8fafc"/>
 
-  <!-- نقطة لامعة على المدار -->
-  <circle cx="256" cy="256" r="8" fill="#ffffff"
-          transform="translate(208 -78) rotate(-25 256 256)"/>
+  <path d="M256 132 159 374h52l19-52h52l19 52h52Z" fill="url(#steel)"/>
+  <path d="M256 202 239 275h34Z" fill="#07111f"/>
+  <path d="M226 293h60" stroke="#f8fafc" stroke-width="10" stroke-linecap="round"/>
+  <path d="M256 132 256 202" stroke="#f8fafc" stroke-opacity="0.45" stroke-width="5" stroke-linecap="round"/>
 
-  <!-- إطار دائري داخلي رفيع -->
-  <circle cx="256" cy="256" r="178"
-          fill="none" stroke="#00d4ff" stroke-width="2" opacity="0.35"/>
-
-  <!-- حرف A منمنم — مبنيّ من مثلّث + شريط أفقي -->
-  <!-- الساق اليسرى -->
-  <path d="M 256 130 L 168 360 L 200 360 L 220 305 L 292 305 L 312 360 L 344 360 Z"
-        fill="url(#cyanGrad)"/>
-  <!-- الفجوة الداخلية لإعطاء شكل A نظيف -->
-  <path d="M 256 195 L 232 275 L 280 275 Z" fill="#0a0e27"/>
-
-  <!-- شريط أفقي abstract (atlas/horizon) داخل الـ A -->
-  <rect x="232" y="285" width="48" height="6" fill="#ffffff" opacity="0.95"/>
-
-  <!-- نقطة accent بيضاء فوق رأس A -->
-  <circle cx="256" cy="118" r="7" fill="#ffffff"/>
+  <path d="M170 404c24 22 54 40 86 54 32-14 62-32 86-54"
+        fill="none" stroke="#22d3ee" stroke-width="3" stroke-linecap="round" opacity="0.35"/>
 </svg>

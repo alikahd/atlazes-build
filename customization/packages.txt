@@ -1,105 +1,69 @@
 # =============================================================================
 # ATLAZES OS - Additional Packages
-# Base: Debian 13 (Trixie) Live XFCE — already includes desktop + base system
-# These are EXTRA packages added on top of the official ISO
+# Base: Debian Live XFCE already includes the desktop and core applications.
+#
+# Goal: keep the ISO private, secure, comfortable, and reasonably small.
+# Heavy background scanners/auditors are not installed by default because they
+# increase ISO size and resource use. Users can install them later with apt:
+# clamav, rkhunter, chkrootkit, lynis, auditd, aide, thunderbird.
 # =============================================================================
 
-# ── Firewall ──────────────────────────────────────────────────────────────────
+# Firewall
 ufw
 gufw
+nftables
 
-# ── Mandatory Access Control ──────────────────────────────────────────────────
+# Mandatory access control and sandboxing
 apparmor
 apparmor-utils
 apparmor-profiles
-
-# ── Application Sandboxing ────────────────────────────────────────────────────
 firejail
 
-# ── Antivirus ─────────────────────────────────────────────────────────────────
-clamav
-clamav-daemon
-clamtk
+# Privacy and anonymity
+tor
+torsocks
+macchanger
+proxychains4
+privoxy
 
-# ── Rootkit Detection ─────────────────────────────────────────────────────────
-rkhunter
-chkrootkit
-
-# ── System Auditing ───────────────────────────────────────────────────────────
-lynis
-auditd
-
-# ── Intrusion Detection ───────────────────────────────────────────────────────
-aide
-aide-common
-
-# ── Password Manager ──────────────────────────────────────────────────────────
-keepassxc
-
-# ── Disk Encryption ───────────────────────────────────────────────────────────
-cryptsetup
-
-# ── Secure Deletion ───────────────────────────────────────────────────────────
-wipe
-bleachbit
-
-# ── Metadata Cleaning ─────────────────────────────────────────────────────────
-mat2
-libimage-exiftool-perl
-
-# ── Network Security ──────────────────────────────────────────────────────────
-fail2ban
-nftables
-
-# ── GPG & Encryption ──────────────────────────────────────────────────────────
-gnupg2
-seahorse
-
-# ── VPN ───────────────────────────────────────────────────────────────────────
+# VPN
 wireguard
 wireguard-tools
 openvpn
 network-manager-openvpn
 network-manager-openvpn-gnome
 
-# ── Tor & Anonymization ───────────────────────────────────────────────────────
-tor
-torsocks
-torbrowser-launcher
-
-# ── Privacy Tools ─────────────────────────────────────────────────────────────
-macchanger
-proxychains4
-privoxy
-
-# ── Secure Email ──────────────────────────────────────────────────────────────
-thunderbird
-
-# ── Password Generation ───────────────────────────────────────────────────────
+# Encryption and password tools
+cryptsetup
+gnupg2
+keepassxc
 pwgen
 
-# ── Unattended Security Updates ───────────────────────────────────────────────
+# Metadata cleaning and secure deletion
+mat2
+libimage-exiftool-perl
+wipe
+bleachbit
+
+# Updates and certificates
 unattended-upgrades
 apt-listchanges
+ca-certificates
+openssl
+gnome-keyring
 
-# ── Calamares Installer ───────────────────────────────────────────────────────
+# Calamares installer
 calamares
 python3-yaml
 python3-jsonschema
 
-# ── Misc Security ─────────────────────────────────────────────────────────────
-gnome-keyring
-ca-certificates
-openssl
-
-# ── Branding & Boot Splash ────────────────────────────────────────────────────
+# Branding and boot splash
 plymouth
 plymouth-themes
 plymouth-label
 librsvg2-bin
-imagemagick
 
-# ── Themes & Icons ────────────────────────────────────────────────────────────
+# Lightweight look and feel
 arc-theme
 papirus-icon-theme
 adwaita-icon-theme
