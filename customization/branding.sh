@@ -1109,7 +1109,9 @@ NEOFETCH
 
 cp -r /etc/skel/.config/neofetch /home/atlazus/.config/ 2>/dev/null || true
 cp -r /etc/skel/.config/neofetch /root/.config/ 2>/dev/null || true
-chown -R atlazus:atlazus /home/atlazus/.config/neofetch 2>/dev/null || true# =============================================================================
+chown -R atlazus:atlazus /home/atlazus/.config/neofetch 2>/dev/null || true
+
+# =============================================================================
 # تنظيف
 # =============================================================================
 rm -rf "$WORK_LOGO" 2>/dev/null || true
