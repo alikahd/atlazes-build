@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ATLAZUS Dashboard
+Comment=Security Dashboard — Real-time system monitoring
+Exec=/usr/local/bin/atlazus-dashboard
+Icon=atlazus
+Terminal=false
+Categories=System;Security;Monitor;
+Keywords=atlazus;dashboard;security;monitor;

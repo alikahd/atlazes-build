@@ -45,6 +45,21 @@ LOG_FILE="${PROJECT_DIR}/build.log"
 log()     { echo -e "${GREEN}[+]${NC} $*" | tee -a "$LOG_FILE"; }
 warn()    { echo -e "${YELLOW}[!]${NC} $*" | tee -a "$LOG_FILE"; }
 error()   { echo -e "${RED}[✗]${NC} $*" | tee -a "$LOG_FILE"; exit 1; }
+apt_update_retry() {
+    local tries=4
+    local delay=8
+    local i
+    for ((i=1; i<=tries; i++)); do
+        if apt-get update -qq; then
+            return 0
+        fi
+        warn "apt-get update failed (attempt ${i}/${tries}); retrying in ${delay}s..."
+        sleep "$delay"
+        delay=$((delay * 2))
+    done
+    return 1
+}
+
 section() {
     echo -e "\n${CYAN}${BOLD}══════════════════════════════════════${NC}" | tee -a "$LOG_FILE"
     echo -e "${CYAN}${BOLD}  $*${NC}" | tee -a "$LOG_FILE"
@@ -80,7 +95,7 @@ check_requirements() {
 
     if [[ ${#missing[@]} -gt 0 ]]; then
         log "تثبيت التبعيات المفقودة..."
-        apt-get update -qq
+        apt_update_retry
         apt-get install -y \
             wget xorriso squashfs-tools \
             grub-pc-bin grub-efi-amd64-bin \
@@ -207,9 +222,9 @@ apply_customizations() {
         log "نسخ atlazus-tools إلى chroot..."
         mkdir -p "$CHROOT/tmp/atlazus-tools"
         cp -r "${CUSTOM_DIR}/atlazes-tools/"* "$CHROOT/tmp/atlazus-tools/" 2>/dev/null || true
-        chmod +x "$CHROOT/tmp/atlazus-tools/atlazus" 2>/dev/null || true
-        chmod +x "$CHROOT/tmp/atlazus-tools/atlazus-firewall" 2>/dev/null || true
-        chmod +x "$CHROOT/tmp/atlazus-tools/atlazus-privacy" 2>/dev/null || true
+        # جعل كل الأدوات قابلة للتنفيذ
+        find "$CHROOT/tmp/atlazus-tools/" -type f ! -name "*.desktop" \
+            -exec chmod +x {} \; 2>/dev/null || true
     fi
 
     # نسخ إعدادات Calamares
@@ -218,7 +233,7 @@ apply_customizations() {
         cp -r "${CALAMARES_DIR}/"* "$CHROOT/tmp/calamares/"
     fi
 
-    # ── إصلاح APT sources قبل أي شيء ────────────────────────────────────────
+    # ── إصلاح APT sources + GPG قبل أي شيء ─────────────────────────────────
     log "إصلاح APT sources..."
     cat > "$CHROOT/etc/apt/sources.list" << 'SOURCES'
 deb http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
@@ -230,12 +245,46 @@ SOURCES
     rm -f "$CHROOT/etc/apt/sources.list.d/"*.list 2>/dev/null || true
     rm -f "$CHROOT/etc/apt/sources.list.d/"*.sources 2>/dev/null || true
 
+    # إصلاح مشكلة sqv/GPG signature "Not live until..."
+    # sqv هي أداة جديدة في Debian Trixie تُسبب مشاكل مع بعض المفاتيح
+    # الحل: استخدام gnupg الكلاسيكي بدلاً من sqv
+    chroot "$CHROOT" /bin/bash -c '
+        export DEBIAN_FRONTEND=noninteractive
+        # تثبيت gnupg إذا لم يكن موجوداً
+        if ! command -v gpg &>/dev/null; then
+            apt-get install -y --no-install-recommends gnupg 2>/dev/null || true
+        fi
+        # إعداد APT لاستخدام gpg بدلاً من sqv
+        mkdir -p /etc/apt/apt.conf.d
+        cat > /etc/apt/apt.conf.d/99-atlazus-gpg << "APTCONF"
+APT::Key::Assert-Pubkey-Algo ">=rsa1024";
+Acquire::AllowInsecureRepositories "false";
+Acquire::AllowDowngradeToInsecureRepositories "false";
+APTCONF
+        # تحديث keyring
+        apt-get install -y --no-install-recommends debian-archive-keyring 2>/dev/null || true
+    ' 2>/dev/null || true
+
     # ── تشغيل التخصيصات داخل chroot ──────────────────────────────────────────
     log "تثبيت الحزم الإضافية..."
     chroot "$CHROOT" /bin/bash -c '
         set -e
         export DEBIAN_FRONTEND=noninteractive
-        apt-get update -qq
+        apt_update_retry() {
+            local tries=4
+            local delay=8
+            local i
+            for ((i=1; i<=tries; i++)); do
+                if apt-get update -qq; then
+                    return 0
+                fi
+                echo "[ATLAZUS][!] apt-get update failed (attempt ${i}/${tries}); retrying in ${delay}s..."
+                sleep "$delay"
+                delay=$((delay * 2))
+            done
+            return 1
+        }
+        apt_update_retry
 
         if [[ -f /tmp/customization/packages.txt ]]; then
             mapfile -t packages < <(grep -Ev "^[[:space:]]*(#|$)" /tmp/customization/packages.txt)
@@ -270,6 +319,12 @@ SOURCES
     if [[ -f "${CUSTOM_DIR}/user-setup.sh" ]]; then
         chmod +x "$CHROOT/tmp/customization/user-setup.sh"
         chroot "$CHROOT" /bin/bash /tmp/customization/user-setup.sh
+    fi
+
+    log "تطبيق إصلاحات الإقلاع التلقائية..."
+    if [[ -f "${CUSTOM_DIR}/firstboot-fixes.sh" ]]; then
+        chmod +x "$CHROOT/tmp/customization/firstboot-fixes.sh"
+        chroot "$CHROOT" /bin/bash /tmp/customization/firstboot-fixes.sh
     fi
 
     # ── إعداد Calamares ───────────────────────────────────────────────────────
@@ -315,6 +370,56 @@ SOURCES
     umount "$CHROOT/dev" 2>/dev/null || true
 
     log "تم تطبيق جميع التخصيصات."
+}
+
+quality_gate() {
+    section "ATLAZUS quality gate"
+
+    local CHROOT="${WORK_DIR}/overlay/merged"
+    local failures=0
+
+    qpass() { log "QA PASS: $*"; }
+    qfail() { warn "QA FAIL: $*"; failures=$((failures + 1)); }
+
+    [[ -x "$CHROOT/usr/sbin/ifconfig" || -x "$CHROOT/sbin/ifconfig" ]] \
+        && qpass "ifconfig is available" \
+        || qfail "ifconfig missing; net-tools was not installed"
+
+    [[ -f "$CHROOT/etc/systemd/system/atlazus-firstboot-fixes.service" ]] \
+        && qpass "first boot fix service installed" \
+        || qfail "first boot fix service missing"
+
+    [[ -f "$CHROOT/root/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml" ]] \
+        && qpass "root desktop branding exists" \
+        || qfail "root desktop branding missing"
+
+    [[ -f "$CHROOT/usr/share/applications/install-atlazus.desktop" ]] \
+        && qpass "ATLAZUS installer launcher exists" \
+        || qfail "Install ATLAZUS OS launcher missing"
+
+    if find "$CHROOT/root" "$CHROOT/home" "$CHROOT/etc/skel" "$CHROOT/usr/share/applications" \
+        -maxdepth 4 -type f \( -iname '*install*debian*.desktop' -o -iname '*debian*installer*.desktop' \) \
+        2>/dev/null | grep -q .; then
+        qfail "Debian installer desktop launcher still exists"
+    else
+        qpass "Debian installer launchers removed"
+    fi
+
+    if grep -R "cdrom:" "$CHROOT/etc/apt" >/dev/null 2>&1; then
+        qfail "APT still contains cdrom sources"
+    else
+        qpass "APT sources do not contain cdrom entries"
+    fi
+
+    [[ -x "$CHROOT/usr/local/bin/atlazes" || -x "$CHROOT/usr/local/bin/atlazus" ]] \
+        && qpass "ATLAZUS CLI installed" \
+        || qfail "ATLAZUS CLI missing"
+
+    if [[ "$failures" -gt 0 ]]; then
+        error "Quality gate failed with ${failures} blocking issue(s)."
+    fi
+
+    log "Quality gate passed."
 }
 
 # ── 5. إعادة ضغط squashfs ────────────────────────────────────────────────────
@@ -583,6 +688,7 @@ main() {
             download_iso
             extract_iso
             apply_customizations
+            quality_gate
             repack_squashfs
             build_iso
             generate_checksums

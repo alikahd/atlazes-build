@@ -88,6 +88,23 @@ if [[ -d /etc/skel/.config ]]; then
     chown -R "${USERNAME}:${USERNAME}" "/home/${USERNAME}/.config" 2>/dev/null || true
 fi
 
+# ── إنشاء مجلدات المستخدم الأساسية ──────────────────────────────────────────
+for dir in Desktop Documents Downloads Music Pictures Videos; do
+    mkdir -p "/home/${USERNAME}/${dir}"
+done
+chown -R "${USERNAME}:${USERNAME}" "/home/${USERNAME}"
+
+# ── Thunar Bookmarks ──────────────────────────────────────────────────────────
+mkdir -p "/home/${USERNAME}/.config/gtk-3.0"
+cat > "/home/${USERNAME}/.config/gtk-3.0/bookmarks" << 'BOOKMARKS'
+file:///home/atlazus/Documents Documents
+file:///home/atlazus/Downloads Downloads
+file:///home/atlazus/Pictures Pictures
+file:///home/atlazus/Music Music
+file:///home/atlazus/Videos Videos
+BOOKMARKS
+chown "${USERNAME}:${USERNAME}" "/home/${USERNAME}/.config/gtk-3.0/bookmarks"
+
 # ── Desktop icons ─────────────────────────────────────────────────────────────
 mkdir -p "/home/${USERNAME}/Desktop"
 
@@ -103,19 +120,97 @@ Categories=System;
 DESKTOP
 chmod +x "/home/${USERNAME}/Desktop/install-atlazus.desktop"
 
+# Control Center
+cat > "/home/${USERNAME}/Desktop/atlazus-control.desktop" << 'DESKTOP2'
+[Desktop Entry]
+Type=Application
+Name=ATLAZUS Control Center
+Comment=Security and Privacy Control Center
+Exec=/usr/local/bin/atlazus-control
+Icon=atlazus
+Terminal=false
+Categories=System;
+DESKTOP2
+chmod +x "/home/${USERNAME}/Desktop/atlazus-control.desktop"
+
+# App Store
+cat > "/home/${USERNAME}/Desktop/atlazus-apps.desktop" << 'DESKTOP3'
+[Desktop Entry]
+Type=Application
+Name=ATLAZUS App Store
+Comment=Install recommended applications
+Exec=/usr/local/bin/atlazus-apps
+Icon=system-software-install
+Terminal=false
+Categories=System;
+DESKTOP3
+chmod +x "/home/${USERNAME}/Desktop/atlazus-apps.desktop"
+
+# Security Tools
+cat > "/home/${USERNAME}/Desktop/atlazus-security-tools.desktop" << 'DESKTOP4'
+[Desktop Entry]
+Type=Application
+Name=Security Tools
+Comment=Install security and pentesting tools
+Exec=/usr/local/bin/atlazus-security-tools
+Icon=security-high
+Terminal=false
+Categories=System;Security;
+DESKTOP4
+chmod +x "/home/${USERNAME}/Desktop/atlazus-security-tools.desktop"
+
+# Dashboard
+cat > "/home/${USERNAME}/Desktop/atlazus-dashboard.desktop" << 'DESKTOP5'
+[Desktop Entry]
+Type=Application
+Name=ATLAZUS Dashboard
+Comment=Security Dashboard
+Exec=/usr/local/bin/atlazus-dashboard
+Icon=atlazus
+Terminal=false
+Categories=System;
+DESKTOP5
+chmod +x "/home/${USERNAME}/Desktop/atlazus-dashboard.desktop"
+
 cat > "/home/${USERNAME}/Desktop/README.txt" << 'README'
-═══════════════════════════════════════════
-        Welcome to ATLAZUS OS 2.0
-═══════════════════════════════════════════
+═══════════════════════════════════════════════════
+           Welcome to ATLAZUS OS 2.0
+═══════════════════════════════════════════════════
 
 Live mode — changes lost on reboot.
-
 Login: atlazus / atlazus
 
-Install: double-click "Install ATLAZUS OS"
+── Desktop Icons ───────────────────────────────────
+  Install ATLAZUS OS    → Install to hard drive
+  ATLAZUS Control Center → Security & Privacy GUI
+  ATLAZUS App Store     → Install applications
+  Security Tools        → Pentesting tools installer
 
-Security: UFW + AppArmor + Firejail active
-═══════════════════════════════════════════
+── CLI Commands ────────────────────────────────────
+  atlazus info              System status
+  atlazus mode privacy      Enable privacy mode
+  atlazus mode stealth      Enable stealth (Tor) mode
+  atlazus security          Security tools installer
+  atlazus security wifi     Install WiFi tools
+  atlazus security web      Install web tools
+  atlazus security passwords Install password tools
+  atlazus security network  Install network tools
+  atlazus security all      Install everything
+
+── Keyboard Shortcuts ──────────────────────────────
+  Super             Open application menu
+  Ctrl+Alt+T        Open terminal
+  Ctrl+Alt+F        Open file manager
+  Print             Screenshot
+  Super+Left/Right  Tile window
+
+── Privacy Modes ───────────────────────────────────
+  normal   Default settings
+  privacy  MAC random + DNS Quad9
+  stealth  Privacy + Tor routing
+
+⚠️  Security tools are for authorized use only!
+═══════════════════════════════════════════════════
 README
 
 chown -R "${USERNAME}:${USERNAME}" "/home/${USERNAME}/Desktop"

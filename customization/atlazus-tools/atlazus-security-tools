@@ -1,0 +1,376 @@
+#!/bin/bash
+# =============================================================================
+# ATLAZUS OS - Security & Pentesting Tools Installer
+# أدوات اختبار الاختراق المتخصصة
+#
+# ⚠️  للاستخدام القانوني فقط — على أنظمتك أو بإذن صريح
+# =============================================================================
+
+CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+TOOLS_DIR="/opt/atlazus-tools"
+
+log()  { echo -e "${GREEN}[+]${NC} $*"; }
+warn() { echo -e "${YELLOW}[!]${NC} $*"; }
+err()  { echo -e "${RED}[✗]${NC} $*"; }
+
+# ── تثبيت التبعيات الأساسية ───────────────────────────────────────────────────
+install_base_deps() {
+    log "Installing base dependencies..."
+    sudo apt-get update -qq
+    sudo apt-get install -y \
+        git python3 python3-pip python3-venv \
+        aircrack-ng iw wireless-tools \
+        macchanger net-tools curl wget \
+        hostapd dnsmasq nmap \
+        hcxdumptool hcxtools \
+        hashcat john \
+        2>/dev/null || true
+    sudo mkdir -p "$TOOLS_DIR"
+    log "Base dependencies installed."
+}
+
+# ── Wifite2 ───────────────────────────────────────────────────────────────────
+install_wifite() {
+    log "Installing Wifite2..."
+    sudo apt-get install -y wifite 2>/dev/null || {
+        # من GitHub إذا لم يكن في المستودع
+        sudo git clone https://github.com/derv82/wifite2.git "$TOOLS_DIR/wifite2" 2>/dev/null || \
+        sudo git -C "$TOOLS_DIR/wifite2" pull 2>/dev/null || true
+        sudo ln -sf "$TOOLS_DIR/wifite2/Wifite.py" /usr/local/bin/wifite 2>/dev/null || true
+        sudo chmod +x "$TOOLS_DIR/wifite2/Wifite.py" 2>/dev/null || true
+    }
+    echo ""
+    echo -e "  ${BOLD}Wifite2${NC} — Automated WiFi auditing"
+    echo "  Usage: sudo wifite"
+    echo "  • Auto-attacks WEP, WPA, WPS"
+    echo "  • Captures handshakes automatically"
+    echo "  • Supports PMKID attacks"
+}
+
+# ── Airgeddon ─────────────────────────────────────────────────────────────────
+install_airgeddon() {
+    log "Installing Airgeddon..."
+    sudo git clone https://github.com/v1s1t0r1sh3r3/airgeddon.git \
+        "$TOOLS_DIR/airgeddon" 2>/dev/null || \
+    sudo git -C "$TOOLS_DIR/airgeddon" pull 2>/dev/null || true
+
+    # إنشاء launcher
+    sudo tee /usr/local/bin/airgeddon > /dev/null << 'LAUNCHER'
+#!/bin/bash
+cd /opt/atlazus-tools/airgeddon
+sudo bash airgeddon.sh "$@"
+LAUNCHER
+    sudo chmod +x /usr/local/bin/airgeddon
+
+    echo ""
+    echo -e "  ${BOLD}Airgeddon${NC} — Multi-use WiFi auditing framework"
+    echo "  Usage: sudo airgeddon"
+    echo "  • Evil Twin attacks"
+    echo "  • WPS attacks (Pixie Dust, PIN brute force)"
+    echo "  • WPA/WPA2 handshake capture"
+    echo "  • DoS attacks"
+    echo "  • Captive portal attacks"
+}
+
+# ── Fluxion ───────────────────────────────────────────────────────────────────
+install_fluxion() {
+    log "Installing Fluxion..."
+    sudo apt-get install -y \
+        hostapd dnsmasq lighttpd php-cgi \
+        xterm macchanger 2>/dev/null || true
+
+    sudo git clone https://github.com/FluxionNetwork/fluxion.git \
+        "$TOOLS_DIR/fluxion" 2>/dev/null || \
+    sudo git -C "$TOOLS_DIR/fluxion" pull 2>/dev/null || true
+
+    sudo tee /usr/local/bin/fluxion > /dev/null << 'LAUNCHER'
+#!/bin/bash
+cd /opt/atlazus-tools/fluxion
+sudo bash fluxion.sh "$@"
+LAUNCHER
+    sudo chmod +x /usr/local/bin/fluxion
+
+    echo ""
+    echo -e "  ${BOLD}Fluxion${NC} — Evil Twin + Social Engineering"
+    echo "  Usage: sudo fluxion"
+    echo "  • Creates fake AP with captive portal"
+    echo "  • Captures WPA password via phishing page"
+    echo "  • Deauthenticates clients from real AP"
+}
+
+# ── Bettercap ─────────────────────────────────────────────────────────────────
+install_bettercap() {
+    log "Installing Bettercap..."
+    sudo apt-get install -y bettercap 2>/dev/null || {
+        # من GitHub releases
+        local ARCH="amd64"
+        local LATEST
+        LATEST=$(curl -s https://api.github.com/repos/bettercap/bettercap/releases/latest \
+            | grep "browser_download_url.*linux_${ARCH}" \
+            | cut -d '"' -f 4 | head -1)
+        if [[ -n "$LATEST" ]]; then
+            wget -q "$LATEST" -O /tmp/bettercap.zip
+            sudo unzip -o /tmp/bettercap.zip -d /usr/local/bin/ bettercap 2>/dev/null || true
+            sudo chmod +x /usr/local/bin/bettercap
+            rm -f /tmp/bettercap.zip
+        fi
+    }
+    # تحميل caplets
+    sudo bettercap -eval "caplets.update; quit" 2>/dev/null || true
+
+    echo ""
+    echo -e "  ${BOLD}Bettercap${NC} — Network attack & monitoring framework"
+    echo "  Usage: sudo bettercap -iface wlan0"
+    echo "  • ARP spoofing / MITM"
+    echo "  • WiFi scanning and deauth"
+    echo "  • BLE scanning"
+    echo "  • HTTP/HTTPS sniffing"
+    echo "  • DNS spoofing"
+}
+
+# ── Evil-WPA / Hostapd-WPE ────────────────────────────────────────────────────
+install_evil_ap() {
+    log "Installing Evil AP tools..."
+    sudo apt-get install -y \
+        hostapd dnsmasq \
+        2>/dev/null || true
+
+    # hostapd-wpe
+    sudo git clone https://github.com/OpenSecurityResearch/hostapd-wpe.git \
+        "$TOOLS_DIR/hostapd-wpe" 2>/dev/null || \
+    sudo git -C "$TOOLS_DIR/hostapd-wpe" pull 2>/dev/null || true
+
+    # create_ap (أداة سهلة لإنشاء AP)
+    sudo git clone https://github.com/oblique/create_ap.git \
+        "$TOOLS_DIR/create_ap" 2>/dev/null || \
+    sudo git -C "$TOOLS_DIR/create_ap" pull 2>/dev/null || true
+    sudo make -C "$TOOLS_DIR/create_ap" install 2>/dev/null || true
+
+    echo ""
+    echo -e "  ${BOLD}Evil AP Tools${NC}"
+    echo "  • hostapd-wpe: WPA Enterprise attacks"
+    echo "  • create_ap: Easy AP creation"
+    echo "  Usage: sudo create_ap wlan0 eth0 'FreeWiFi'"
+}
+
+# ── Hashcat + Rules ───────────────────────────────────────────────────────────
+install_hashcat_full() {
+    log "Installing Hashcat + wordlists + rules..."
+    sudo apt-get install -y hashcat hashcat-utils 2>/dev/null || true
+
+    # rockyou
+    if [[ ! -f /usr/share/wordlists/rockyou.txt ]]; then
+        [[ -f /usr/share/wordlists/rockyou.txt.gz ]] && \
+            sudo gunzip /usr/share/wordlists/rockyou.txt.gz 2>/dev/null || true
+    fi
+
+    # SecLists
+    if [[ ! -d /usr/share/seclists ]]; then
+        log "Downloading SecLists (large download ~1GB)..."
+        sudo git clone --depth 1 \
+            https://github.com/danielmiessler/SecLists.git \
+            /usr/share/seclists 2>/dev/null || true
+    fi
+
+    # Hashcat rules
+    sudo mkdir -p /usr/share/hashcat-rules
+    sudo git clone https://github.com/NotSoSecure/password_cracking_rules.git \
+        /usr/share/hashcat-rules/NotSoSecure 2>/dev/null || true
+
+    echo ""
+    echo -e "  ${BOLD}Hashcat + Wordlists${NC}"
+    echo "  Wordlists: /usr/share/wordlists/"
+    echo "  SecLists:  /usr/share/seclists/"
+    echo "  Usage: hashcat -m 22000 capture.hc22000 /usr/share/wordlists/rockyou.txt"
+    echo "  Convert: hcxpcapngtool capture.pcapng -o capture.hc22000"
+}
+
+# ── Wireshark + Bettercap + MITMf ────────────────────────────────────────────
+install_mitm_tools() {
+    log "Installing MITM tools..."
+    sudo apt-get install -y \
+        wireshark tshark \
+        ettercap-graphical \
+        arpwatch \
+        sslstrip \
+        mitmproxy \
+        2>/dev/null || true
+
+    # MITMf
+    sudo git clone https://github.com/byt3bl33d3r/MITMf.git \
+        "$TOOLS_DIR/MITMf" 2>/dev/null || \
+    sudo git -C "$TOOLS_DIR/MITMf" pull 2>/dev/null || true
+
+    # إضافة المستخدم لمجموعة wireshark
+    sudo usermod -aG wireshark "$USER" 2>/dev/null || true
+
+    echo ""
+    echo -e "  ${BOLD}MITM Tools${NC}"
+    echo "  • wireshark: Packet capture GUI"
+    echo "  • ettercap: ARP poisoning + sniffing"
+    echo "  • mitmproxy: HTTP/HTTPS proxy"
+    echo "  • sslstrip: SSL stripping"
+}
+
+# ── Nmap + Masscan + Recon ────────────────────────────────────────────────────
+install_recon_full() {
+    log "Installing Recon tools..."
+    sudo apt-get install -y \
+        nmap masscan \
+        nikto dirb gobuster \
+        sqlmap \
+        whatweb wafw00f \
+        theharvester \
+        dnsenum dnsrecon \
+        whois \
+        2>/dev/null || true
+
+    # Subfinder
+    if command -v go &>/dev/null; then
+        go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest 2>/dev/null || true
+    fi
+
+    echo ""
+    echo -e "  ${BOLD}Recon Tools${NC}"
+    echo "  • nmap: Port scanning"
+    echo "  • nikto: Web vulnerability scanner"
+    echo "  • sqlmap: SQL injection"
+    echo "  • gobuster: Directory brute force"
+    echo "  • theharvester: OSINT"
+}
+
+# ── Metasploit ────────────────────────────────────────────────────────────────
+install_metasploit() {
+    log "Installing Metasploit Framework..."
+    if ! command -v msfconsole &>/dev/null; then
+        # تثبيت من المستودع الرسمي
+        curl -fsSL https://apt.metasploit.com/metasploit-framework.gpg.key \
+            | sudo gpg --dearmor -o /usr/share/keyrings/metasploit.gpg 2>/dev/null || true
+        echo "deb [signed-by=/usr/share/keyrings/metasploit.gpg] https://apt.metasploit.com/ focal main" \
+            | sudo tee /etc/apt/sources.list.d/metasploit.list > /dev/null
+        sudo apt-get update -qq
+        sudo apt-get install -y metasploit-framework 2>/dev/null || true
+    fi
+
+    echo ""
+    echo -e "  ${BOLD}Metasploit Framework${NC}"
+    echo "  Usage: msfconsole"
+    echo "  • search <exploit>"
+    echo "  • use exploit/..."
+    echo "  • set RHOSTS target"
+    echo "  • run"
+}
+
+# ── تثبيت الكل ───────────────────────────────────────────────────────────────
+install_all() {
+    echo -e "${RED}${BOLD}Installing ALL tools — this may take 20-40 minutes${NC}"
+    install_base_deps
+    install_wifite
+    install_airgeddon
+    install_fluxion
+    install_bettercap
+    install_evil_ap
+    install_hashcat_full
+    install_mitm_tools
+    install_recon_full
+    install_metasploit
+    echo -e "${GREEN}${BOLD}[✓] All tools installed in $TOOLS_DIR${NC}"
+    echo ""
+    echo "  Quick commands:"
+    echo "  sudo wifite          — Automated WiFi attacks"
+    echo "  sudo airgeddon       — WiFi framework"
+    echo "  sudo fluxion         — Evil Twin attacks"
+    echo "  sudo bettercap       — Network MITM"
+    echo "  msfconsole           — Metasploit"
+}
+
+# ── GUI Mode ──────────────────────────────────────────────────────────────────
+if command -v zenity &>/dev/null && [[ -n "$DISPLAY" ]] && [[ "${1:-}" != "--cli" ]]; then
+
+    zenity --warning \
+        --title="⚠️ Legal Warning" \
+        --width=520 \
+        --text="<b>⚠️ LEGAL WARNING</b>\n\nThese tools are for <b>authorized testing only</b>.\n\n• Use only on networks/systems you own\n• Or with explicit written permission\n\n<b>Unauthorized use is illegal.</b>\n\nBy continuing you accept full legal responsibility." \
+        2>/dev/null || exit 0
+
+    CHOICE=$(zenity --list \
+        --title="ATLAZUS Security Tools" \
+        --text="<b>Security &amp; Pentesting Tools</b>\nSelect tools to install:" \
+        --column="Tool" \
+        --column="Description" \
+        --width=680 --height=520 \
+        "📡 Wifite2"          "Automated WiFi auditing (WEP/WPA/WPS)" \
+        "🔥 Airgeddon"        "Multi-use WiFi framework (Evil Twin, WPS, DoS)" \
+        "👻 Fluxion"          "Evil Twin + captive portal phishing" \
+        "🕸️ Bettercap"        "Network MITM, ARP spoof, WiFi deauth" \
+        "📶 Evil AP Tools"    "hostapd-wpe + create_ap" \
+        "🔑 Hashcat + Lists"  "GPU cracking + SecLists + rockyou" \
+        "🔍 MITM Tools"       "Wireshark, ettercap, mitmproxy, sslstrip" \
+        "🌐 Recon Tools"      "nmap, nikto, sqlmap, gobuster, theharvester" \
+        "💥 Metasploit"       "Full exploitation framework" \
+        "📦 Install ALL"      "Install everything (large download)" \
+        "❌ Cancel"           "Exit" \
+        2>/dev/null)
+
+    [[ -z "$CHOICE" || "$CHOICE" == "❌ Cancel" ]] && exit 0
+
+    CMD=""
+    case "$CHOICE" in
+        "📡 Wifite2")         CMD="atlazus-security-tools wifite" ;;
+        "🔥 Airgeddon")       CMD="atlazus-security-tools airgeddon" ;;
+        "👻 Fluxion")         CMD="atlazus-security-tools fluxion" ;;
+        "🕸️ Bettercap")       CMD="atlazus-security-tools bettercap" ;;
+        "📶 Evil AP Tools")   CMD="atlazus-security-tools evilap" ;;
+        "🔑 Hashcat + Lists") CMD="atlazus-security-tools hashcat" ;;
+        "🔍 MITM Tools")      CMD="atlazus-security-tools mitm" ;;
+        "🌐 Recon Tools")     CMD="atlazus-security-tools recon" ;;
+        "💥 Metasploit")      CMD="atlazus-security-tools metasploit" ;;
+        "📦 Install ALL")     CMD="atlazus-security-tools all" ;;
+    esac
+
+    [[ -n "$CMD" ]] && xfce4-terminal --title="Installing..." --hold \
+        -e "bash -c '$CMD; echo; echo Done. Press Enter to close; read'" &
+
+else
+    # ── CLI Mode ──────────────────────────────────────────────────────────────
+    echo -e "${CYAN}${BOLD}"
+    echo "  ╔══════════════════════════════════════════╗"
+    echo "  ║     ATLAZUS Security Tools Installer     ║"
+    echo "  ╚══════════════════════════════════════════╝"
+    echo -e "${NC}"
+    echo -e "${RED}${BOLD}⚠️  For authorized use only!${NC}"
+    echo ""
+
+    case "${1:-help}" in
+        wifite)      install_base_deps; install_wifite ;;
+        airgeddon)   install_base_deps; install_airgeddon ;;
+        fluxion)     install_base_deps; install_fluxion ;;
+        bettercap)   install_bettercap ;;
+        evilap)      install_base_deps; install_evil_ap ;;
+        hashcat)     install_hashcat_full ;;
+        mitm)        install_mitm_tools ;;
+        recon)       install_recon_full ;;
+        metasploit)  install_metasploit ;;
+        all)         install_base_deps; install_all ;;
+        *)
+            echo "Usage: atlazus-security-tools <tool>"
+            echo ""
+            echo "  wifite      Wifite2 — Automated WiFi attacks"
+            echo "  airgeddon   Airgeddon — WiFi framework"
+            echo "  fluxion     Fluxion — Evil Twin attacks"
+            echo "  bettercap   Bettercap — Network MITM"
+            echo "  evilap      Evil AP (hostapd-wpe, create_ap)"
+            echo "  hashcat     Hashcat + SecLists + rockyou"
+            echo "  mitm        Wireshark, ettercap, mitmproxy"
+            echo "  recon       nmap, nikto, sqlmap, gobuster"
+            echo "  metasploit  Metasploit Framework"
+            echo "  all         Install everything"
+            ;;
+    esac
+fi

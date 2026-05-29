@@ -1,0 +1,66 @@
+#!/bin/bash
+# =============================================================================
+# ATLAZUS OS - Welcome Screen
+# يظهر عند أول إقلاع — يشرح المشروع ويوفر أزرار سريعة
+# =============================================================================
+
+# التحقق من وجود zenity
+if ! command -v zenity &>/dev/null; then
+    exit 0
+fi
+
+# لا تُشغَّل إذا كان المستخدم root
+[[ $EUID -eq 0 ]] && exit 0
+
+# لا تُشغَّل إذا تم إغلاقها من قبل
+DONE_FILE="$HOME/.atlazus-welcome-shown"
+[[ -f "$DONE_FILE" ]] && exit 0
+
+CHOICE=$(zenity --list \
+    --title="Welcome to ATLAZUS OS 2.0" \
+    --text="<b><big>Welcome to ATLAZUS OS 2.0 (Horizon)</big></b>\n\nSecure · Private · Professional\n\nWhat would you like to do?" \
+    --column="Action" \
+    --column="Description" \
+    --width=620 --height=480 \
+    "📊 Dashboard"          "Open security dashboard" \
+    "🔒 Security Status"    "View firewall, AppArmor and Firejail status" \
+    "🕵️ Privacy Mode"       "Enable MAC randomization, DNS encryption, Tor" \
+    "🛡️ Security Tools"     "Install pentesting and security tools" \
+    "💻 Install ATLAZUS OS" "Install permanently to your hard drive" \
+    "📦 App Store"          "Install recommended applications" \
+    "📖 About"              "Learn about ATLAZUS OS features" \
+    "✖ Close"              "Close this window" \
+    2>/dev/null)
+
+case "$CHOICE" in
+    "📊 Dashboard")
+        atlazus-dashboard &
+        ;;
+    "🔒 Security Status")
+        xfce4-terminal --title="ATLAZUS Security Status" --hold \
+            -e "bash -c 'atlazus info; echo; echo Press Enter to close; read'" &
+        ;;
+    "🕵️ Privacy Mode")
+        xfce4-terminal --title="ATLAZUS Privacy" --hold \
+            -e "bash -c 'atlazus-privacy status; echo; echo \"Enable privacy mode? (y/n)\"; read ans; [[ \$ans == y ]] && { atlazus-privacy mac-random; atlazus-privacy dns; echo Done; } ; read'" &
+        ;;
+    "🛡️ Security Tools")
+        atlazus-security-tools &
+        ;;
+    "💻 Install ATLAZUS OS")
+        pkexec calamares &
+        ;;
+    "📦 App Store")
+        atlazus-apps &
+        ;;
+    "📖 About")
+        zenity --info \
+            --title="About ATLAZUS OS" \
+            --width=500 \
+            --text="<b>ATLAZUS OS 2.0 (Horizon)</b>\n\nBase: Debian 13 (Trixie)\n\n<b>Security Features:</b>\n• UFW Firewall (deny incoming by default)\n• AppArmor mandatory access control\n• Firejail application sandboxing\n• Kernel hardening parameters\n\n<b>Privacy Features:</b>\n• MAC address randomization\n• DNS encryption (Quad9)\n• Tor network support\n• Metadata cleaning tools\n\n<b>CLI Tools:</b>\n• atlazus info\n• atlazus-firewall status\n• atlazus-privacy status\n\nGitHub: github.com/atlazus/atlazus-os" \
+            2>/dev/null
+        ;;
+esac
+
+# تسجيل أنها ظهرت
+touch "$DONE_FILE"

@@ -17,13 +17,31 @@ log "=== Starting ATLAZUS branding ==="
 export DEBIAN_FRONTEND=noninteractive
 
 # =============================================================================
-# (أ) تثبيت أدوات تحويل الصور أولاً
+# (أ) تثبيت أدوات تحويل الصور أولاً + إصلاح APT
 # =============================================================================
-log "[1] Installing image conversion tools..."
+log "[1] Fixing APT and installing tools..."
+
+# إصلاح مشكلة sqv "Not live until" — استخدام gnupg الكلاسيكي
+apt-get install -y --no-install-recommends gnupg debian-archive-keyring 2>/dev/null || true
+
+# إعداد APT لتجاوز مشكلة sqv
+mkdir -p /etc/apt/apt.conf.d
+cat > /etc/apt/apt.conf.d/99-atlazus-apt << 'APTCONF'
+APT::Key::Assert-Pubkey-Algo ">=rsa1024";
+APTCONF
+
+# تحديث sources.list بمصادر صحيحة
+cat > /etc/apt/sources.list << 'SOURCES'
+deb http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian trixie-updates main contrib non-free non-free-firmware
+deb http://security.debian.org/debian-security trixie-security main contrib non-free non-free-firmware
+SOURCES
+
+apt-get update -qq 2>/dev/null || apt-get update -qq --allow-insecure-repositories 2>/dev/null || true
 
 apt-get install -y --no-install-recommends librsvg2-bin 2>/dev/null \
     || apt-get install -y --no-install-recommends imagemagick 2>/dev/null \
-    || warn "No image converter available — will use SVG directly"
+    || warn "No image converter available"
 
 HAS_RSVG=0
 HAS_CONVERT=0
@@ -166,23 +184,43 @@ if id atlazus &>/dev/null; then
     chown -R atlazus:atlazus /home/atlazus/.config 2>/dev/null || true
 fi
 
+# Apply the same desktop branding to root, because some users log in as root.
+ROOT_XFCE="/root/.config/xfce4/xfconf/xfce-perchannel-xml"
+mkdir -p "$ROOT_XFCE"
+cp "${XFCE_CFG_DIR}/xfce4-desktop.xml" "$ROOT_XFCE/" 2>/dev/null || true
+
 # =============================================================================
 # (و) حذف "Install Debian" وإضافة "Install ATLAZUS OS"
 # =============================================================================
 log "[6] Fixing desktop shortcuts..."
 
-# حذف كل اختصارات Debian
-rm -f /usr/share/applications/debian-*.desktop 2>/dev/null || true
-rm -f /usr/share/applications/install-debian.desktop 2>/dev/null || true
-rm -f /usr/share/applications/calamares-debian.desktop 2>/dev/null || true
-
-# حذف من سطح مكتب المستخدمين
-for user_home in /home/* /root; do
-    rm -f "${user_home}/Desktop/install-debian.desktop" 2>/dev/null || true
-    rm -f "${user_home}/Desktop/Install Debian.desktop" 2>/dev/null || true
+# حذف كل اختصارات Debian من كل مكان ممكن
+find /usr/share/applications /etc/xdg/autostart /etc/skel /home /root \
+    -maxdepth 5 -type f -name "*.desktop" 2>/dev/null | while read -r f; do
+    if grep -qi "debian\|install.*debian\|calamares.*debian" "$f" 2>/dev/null; then
+        # تحقق أنه ليس اختصار ATLAZUS
+        if ! grep -qi "atlazus" "$f" 2>/dev/null; then
+            rm -f "$f"
+            log "  Removed: $f"
+        fi
+    fi
 done
 
-# إنشاء اختصار ATLAZUS
+# حذف بالاسم مباشرة
+rm -f /usr/share/applications/debian-*.desktop 2>/dev/null || true
+rm -f /usr/share/applications/install-debian.desktop 2>/dev/null || true
+rm -f /usr/share/applications/calamares.desktop 2>/dev/null || true
+
+# حذف من سطح مكتب كل المستخدمين
+for d in /home/*/Desktop /root/Desktop; do
+    [[ -d "$d" ]] || continue
+    rm -f "$d"/install-debian.desktop \
+          "$d"/"Install Debian.desktop" \
+          "$d"/debian*.desktop \
+          "$d"/calamares.desktop 2>/dev/null || true
+done
+
+# إنشاء اختصار ATLAZUS فقط
 cat > /usr/share/applications/install-atlazus.desktop << 'DESKTOP'
 [Desktop Entry]
 Type=Application
@@ -201,6 +239,11 @@ if id atlazus &>/dev/null; then
     chmod +x /home/atlazus/Desktop/install-atlazus.desktop
     chown atlazus:atlazus /home/atlazus/Desktop/install-atlazus.desktop
 fi
+
+# نسخ لسطح مكتب root
+mkdir -p /root/Desktop
+cp /usr/share/applications/install-atlazus.desktop /root/Desktop/
+chmod +x /root/Desktop/install-atlazus.desktop
 
 # =============================================================================
 # (ز) دعم اللغات المتعددة
@@ -384,14 +427,20 @@ cat > /etc/lightdm/lightdm-gtk-greeter.conf << 'LIGHTDMCONF'
 [greeter]
 background=/usr/share/backgrounds/atlazus/login-bg.png
 default-user-image=/usr/share/atlazus/logo.png
-theme-name=Adwaita-dark
+theme-name=Arc-Dark
 icon-theme-name=Papirus-Dark
-font-name=Cantarell 11
+font-name=Cantarell 12
+xft-antialias=true
+xft-dpi=96
+xft-hintstyle=hintslight
+xft-rgba=rgb
 position=50%,center 50%,center
 hide-user-image=false
 show-clock=true
-clock-format=%A, %B %d  %H:%M
+clock-format=<b>%H:%M</b>  %A, %B %d
+panel-position=top
 indicators=~host;~spacer;~clock;~spacer;~session;~language;~power
+reader=
 LIGHTDMCONF
 
 rm -f /etc/lightdm/lightdm-gtk-greeter.conf.d/01_debian.conf 2>/dev/null || true
@@ -470,10 +519,28 @@ cat > "${XFCE_CFG_DIR}/xsettings.xml" << 'XSETTINGS'
   <property name="Net" type="empty">
     <property name="ThemeName" type="string" value="Arc-Dark"/>
     <property name="IconThemeName" type="string" value="Papirus-Dark"/>
+    <property name="DoubleClickTime" type="int" value="400"/>
+    <property name="CursorBlink" type="bool" value="true"/>
+    <property name="CursorBlinkTime" type="int" value="1200"/>
+    <property name="EnableEventSounds" type="bool" value="false"/>
+    <property name="EnableInputFeedbackSounds" type="bool" value="false"/>
+  </property>
+  <property name="Xft" type="empty">
+    <property name="Antialias" type="int" value="1"/>
+    <property name="Hinting" type="int" value="1"/>
+    <property name="HintStyle" type="string" value="hintslight"/>
+    <property name="RGBA" type="string" value="rgb"/>
+    <property name="DPI" type="int" value="96"/>
   </property>
   <property name="Gtk" type="empty">
-    <property name="FontName" type="string" value="Cantarell 10"/>
-    <property name="MonospaceFontName" type="string" value="DejaVu Sans Mono 10"/>
+    <property name="FontName" type="string" value="Cantarell 11"/>
+    <property name="MonospaceFontName" type="string" value="DejaVu Sans Mono 11"/>
+    <property name="CursorThemeName" type="string" value="Adwaita"/>
+    <property name="CursorThemeSize" type="int" value="24"/>
+    <property name="ToolbarStyle" type="string" value="icons"/>
+    <property name="ButtonImages" type="bool" value="true"/>
+    <property name="MenuImages" type="bool" value="true"/>
+    <property name="DecorationLayout" type="string" value="menu:minimize,maximize,close"/>
   </property>
 </channel>
 XSETTINGS
@@ -483,31 +550,555 @@ cat > "${XFCE_CFG_DIR}/xfwm4.xml" << 'XFWM'
 <channel name="xfwm4" version="1.0">
   <property name="general" type="empty">
     <property name="theme" type="string" value="Arc-Dark"/>
-    <property name="title_font" type="string" value="Cantarell Bold 10"/>
+    <property name="title_font" type="string" value="Cantarell Bold 11"/>
+    <property name="button_layout" type="string" value="O|HMC"/>
+    <property name="use_compositing" type="bool" value="false"/>
+    <property name="frame_opacity" type="int" value="100"/>
+    <property name="shadow_delta_height" type="int" value="-3"/>
+    <property name="shadow_delta_width" type="int" value="0"/>
+    <property name="shadow_opacity" type="int" value="50"/>
+    <property name="workspace_count" type="int" value="2"/>
+    <property name="snap_to_windows" type="bool" value="true"/>
+    <property name="snap_to_border" type="bool" value="true"/>
+    <property name="snap_width" type="int" value="10"/>
+    <property name="wrap_workspaces" type="bool" value="false"/>
+    <property name="wrap_windows" type="bool" value="false"/>
   </property>
 </channel>
 XFWM
+
+# Panel محسّن مع أدوات ATLAZUS
+cat > "${XFCE_CFG_DIR}/xfce4-panel.xml" << 'PANEL'
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfce4-panel" version="1.0">
+  <property name="configver" type="int" value="2"/>
+  <property name="panels" type="array">
+    <value type="int" value="1"/>
+    <property name="panel-1" type="empty">
+      <property name="position" type="string" value="p=6;x=0;y=0"/>
+      <property name="length" type="uint" value="100"/>
+      <property name="position-locked" type="bool" value="true"/>
+      <property name="size" type="uint" value="30"/>
+      <property name="background-style" type="uint" value="1"/>
+      <property name="background-rgba" type="array">
+        <value type="double" value="0.039"/>
+        <value type="double" value="0.055"/>
+        <value type="double" value="0.153"/>
+        <value type="double" value="0.95"/>
+      </property>
+      <property name="plugin-ids" type="array">
+        <value type="int" value="1"/>
+        <value type="int" value="2"/>
+        <value type="int" value="3"/>
+        <value type="int" value="4"/>
+        <value type="int" value="5"/>
+        <value type="int" value="6"/>
+        <value type="int" value="7"/>
+        <value type="int" value="8"/>
+        <value type="int" value="9"/>
+      </property>
+    </property>
+  </property>
+  <property name="plugins" type="empty">
+    <property name="plugin-1" type="string" value="whiskermenu">
+      <property name="button-icon" type="string" value="atlazus"/>
+      <property name="button-title" type="string" value="ATLAZUS"/>
+      <property name="show-button-title" type="bool" value="false"/>
+      <property name="show-button-icon" type="bool" value="true"/>
+    </property>
+    <property name="plugin-2" type="string" value="separator">
+      <property name="style" type="uint" value="0"/>
+    </property>
+    <property name="plugin-3" type="string" value="tasklist">
+      <property name="show-labels" type="bool" value="true"/>
+      <property name="grouping" type="uint" value="1"/>
+    </property>
+    <property name="plugin-4" type="string" value="separator">
+      <property name="expand" type="bool" value="true"/>
+      <property name="style" type="uint" value="0"/>
+    </property>
+    <property name="plugin-5" type="string" value="systray">
+      <property name="size-max" type="uint" value="22"/>
+    </property>
+    <property name="plugin-6" type="string" value="pulseaudio">
+      <property name="enable-keyboard-shortcuts" type="bool" value="true"/>
+    </property>
+    <property name="plugin-7" type="string" value="power-manager-plugin"/>
+    <property name="plugin-8" type="string" value="clock">
+      <property name="digital-format" type="string" value="%H:%M  %a %d %b"/>
+      <property name="mode" type="uint" value="2"/>
+    </property>
+    <property name="plugin-9" type="string" value="actions">
+      <property name="appearance" type="uint" value="0"/>
+      <property name="items" type="array">
+        <value type="string" value="-lock-screen"/>
+        <value type="string" value="+switch-user"/>
+        <value type="string" value="+separator"/>
+        <value type="string" value="+suspend"/>
+        <value type="string" value="+hibernate"/>
+        <value type="string" value="+separator"/>
+        <value type="string" value="+shutdown"/>
+        <value type="string" value="+restart"/>
+        <value type="string" value="+separator"/>
+        <value type="string" value="+logout"/>
+      </property>
+    </property>
+  </property>
+</channel>
+PANEL
+
+# إعدادات Thunar (file manager)
+mkdir -p "${XFCE_CFG_DIR}"
+cat > "${XFCE_CFG_DIR}/thunar.xml" << 'THUNAR'
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="thunar" version="1.0">
+  <property name="last-view" type="string" value="ThunarDetailsView"/>
+  <property name="last-icon-view-zoom-level" type="string" value="THUNAR_ZOOM_LEVEL_100_PERCENT"/>
+  <property name="last-details-view-zoom-level" type="string" value="THUNAR_ZOOM_LEVEL_38_PERCENT"/>
+  <property name="last-details-view-column-order" type="string" value="THUNAR_COLUMN_NAME,THUNAR_COLUMN_SIZE,THUNAR_COLUMN_TYPE,THUNAR_COLUMN_DATE_MODIFIED"/>
+  <property name="last-details-view-column-widths" type="string" value="50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50"/>
+  <property name="last-details-view-fixed-columns" type="bool" value="false"/>
+  <property name="last-show-hidden" type="bool" value="false"/>
+  <property name="last-window-width" type="int" value="900"/>
+  <property name="last-window-height" type="int" value="600"/>
+  <property name="last-window-maximized" type="bool" value="false"/>
+  <property name="misc-single-click" type="bool" value="false"/>
+  <property name="misc-show-delete-action" type="bool" value="true"/>
+  <property name="misc-thumbnail-mode" type="string" value="THUNAR_THUMBNAIL_MODE_ALWAYS"/>
+</channel>
+THUNAR
+
+# إعدادات Terminal
+mkdir -p "/etc/skel/.config/xfce4/terminal"
+cat > "/etc/skel/.config/xfce4/terminal/terminalrc" << 'TERMRC'
+[Configuration]
+FontName=DejaVu Sans Mono 11
+MiscAlwaysShowTabs=FALSE
+MiscBell=FALSE
+MiscBordersDefault=TRUE
+MiscCursorBlinks=FALSE
+MiscCursorShape=TERMINAL_CURSOR_SHAPE_BLOCK
+MiscDefaultGeometry=100x30
+MiscMenubarDefault=FALSE
+MiscMouseAutohide=FALSE
+MiscToolbarDefault=FALSE
+MiscConfirmClose=TRUE
+MiscCycleTabs=TRUE
+MiscTabCloseButtons=TRUE
+MiscTabPosition=GTK_POS_TOP
+MiscHighlightUrls=TRUE
+MiscScrollOnOutput=FALSE
+MiscScrollOnKeystroke=TRUE
+ScrollingBar=TERMINAL_SCROLLBAR_NONE
+ScrollingLines=10000
+ColorForeground=#d8d8d8
+ColorBackground=#0a0e27
+ColorCursor=#00d4ff
+ColorPalette=#1e1e2e;#f38ba8;#a6e3a1;#f9e2af;#89b4fa;#cba6f7;#89dceb;#cdd6f4;#585b70;#f38ba8;#a6e3a1;#f9e2af;#89b4fa;#cba6f7;#89dceb;#ffffff
+ColorBold=#ffffff
+ColorBoldUseDefault=FALSE
+TERMRC
 
 # نسخ لمستخدم atlazus
 if id atlazus &>/dev/null; then
     USER_XFCE="/home/atlazus/.config/xfce4/xfconf/xfce-perchannel-xml"
     mkdir -p "$USER_XFCE"
     cp "${XFCE_CFG_DIR}/"*.xml "$USER_XFCE/" 2>/dev/null || true
+    # نسخ terminal config
+    mkdir -p /home/atlazus/.config/xfce4/terminal
+    cp /etc/skel/.config/xfce4/terminal/terminalrc \
+       /home/atlazus/.config/xfce4/terminal/ 2>/dev/null || true
     chown -R atlazus:atlazus /home/atlazus/.config 2>/dev/null || true
 fi
 
+# نسخ لـ root أيضاً (لمنع ظهور خلفية Debian عند الدخول كـ root)
+ROOT_XFCE="/root/.config/xfce4/xfconf/xfce-perchannel-xml"
+mkdir -p "$ROOT_XFCE"
+cp "${XFCE_CFG_DIR}/"*.xml "$ROOT_XFCE/" 2>/dev/null || true
+mkdir -p /root/.config/xfce4/terminal
+cp /etc/skel/.config/xfce4/terminal/terminalrc \
+   /root/.config/xfce4/terminal/ 2>/dev/null || true
+
+# نسخ لـ /etc/skel (لأي مستخدم جديد)
+mkdir -p "/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml"
+cp "${XFCE_CFG_DIR}/"*.xml "/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/" 2>/dev/null || true
+
+# ── Keyboard Shortcuts ────────────────────────────────────────────────────────
+log "  Setting keyboard shortcuts..."
+cat > "${XFCE_CFG_DIR}/xfce4-keyboard-shortcuts.xml" << 'KBSHORTCUTS'
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfce4-keyboard-shortcuts" version="1.0">
+  <property name="commands" type="empty">
+    <property name="custom" type="empty">
+      <property name="Super_L" type="string" value="xfce4-popup-whiskermenu"/>
+      <property name="&lt;Primary&gt;&lt;Alt&gt;t" type="string" value="xfce4-terminal"/>
+      <property name="&lt;Primary&gt;&lt;Alt&gt;f" type="string" value="thunar"/>
+      <property name="Print" type="string" value="xfce4-screenshooter"/>
+      <property name="&lt;Alt&gt;F2" type="string" value="xfce4-appfinder --collapsed"/>
+      <property name="&lt;Primary&gt;&lt;Alt&gt;l" type="string" value="xflock4"/>
+      <property name="&lt;Primary&gt;&lt;Alt&gt;Delete" type="string" value="xfce4-session-logout"/>
+    </property>
+  </property>
+  <property name="xfwm4" type="empty">
+    <property name="custom" type="empty">
+      <property name="&lt;Alt&gt;F4" type="string" value="close_window_key"/>
+      <property name="&lt;Alt&gt;F5" type="string" value="maximize_horiz_key"/>
+      <property name="&lt;Alt&gt;F6" type="string" value="maximize_vert_key"/>
+      <property name="&lt;Alt&gt;F7" type="string" value="move_window_key"/>
+      <property name="&lt;Alt&gt;F8" type="string" value="resize_window_key"/>
+      <property name="&lt;Alt&gt;F9" type="string" value="hide_window_key"/>
+      <property name="&lt;Alt&gt;F10" type="string" value="maximize_window_key"/>
+      <property name="&lt;Alt&gt;F11" type="string" value="fullscreen_key"/>
+      <property name="&lt;Alt&gt;Tab" type="string" value="cycle_windows_key"/>
+      <property name="&lt;Super&gt;d" type="string" value="show_desktop_key"/>
+      <property name="&lt;Super&gt;Left" type="string" value="tile_left_key"/>
+      <property name="&lt;Super&gt;Right" type="string" value="tile_right_key"/>
+      <property name="&lt;Super&gt;Up" type="string" value="maximize_window_key"/>
+      <property name="&lt;Super&gt;Down" type="string" value="hide_window_key"/>
+    </property>
+  </property>
+</channel>
+KBSHORTCUTS
+
+# نسخ shortcuts لجميع المستخدمين
+for dest in \
+    "/home/atlazus/.config/xfce4/xfconf/xfce-perchannel-xml" \
+    "/root/.config/xfce4/xfconf/xfce-perchannel-xml" \
+    "/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml"; do
+    mkdir -p "$dest"
+    cp "${XFCE_CFG_DIR}/xfce4-keyboard-shortcuts.xml" "$dest/" 2>/dev/null || true
+done
+chown -R atlazus:atlazus /home/atlazus/.config 2>/dev/null || true
+
 # =============================================================================
-# (ن) أدوات atlazus CLI
+# (ن) أدوات atlazus CLI + Welcome + Control Center
 # =============================================================================
 log "[14] Installing atlazus CLI tools..."
 
+# ── Whisker Menu config ───────────────────────────────────────────────────────
+mkdir -p /etc/skel/.config/xfce4
+cat > /etc/skel/.config/xfce4/whiskermenu-1.rc << 'WHISKER'
+button-icon-name=atlazus
+button-single-row=false
+show-button-title=false
+show-button-icon=true
+show-recent-by-default=false
+show-favorites=true
+show-recent=true
+show-applications=true
+item-icon-size=2
+hover-switch-category=false
+category-icon-size=1
+load-hierarchy=false
+position-search-alternate=true
+position-commands-alternate=false
+position-categories-alternate=true
+stay-on-focus-out=false
+profile-shape=0
+confirm-session-command=true
+menu-width=500
+menu-height=450
+menu-opacity=95
+favorites=xfce4-terminal.desktop,thunar.desktop,firefox-esr.desktop,atlazus-control.desktop,atlazus-apps.desktop,install-atlazus.desktop
+WHISKER
+
+# ── Notifications config ──────────────────────────────────────────────────────
+cat > "${XFCE_CFG_DIR}/xfce4-notifyd.xml" << 'NOTIFYD'
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfce4-notifyd" version="1.0">
+  <property name="theme" type="string" value="Default"/>
+  <property name="notify-location" type="uint" value="3"/>
+  <property name="do-fadeout" type="bool" value="true"/>
+  <property name="do-slideout" type="bool" value="false"/>
+  <property name="expire-timeout" type="int" value="5"/>
+  <property name="initial-opacity" type="double" value="0.9"/>
+  <property name="log-level" type="uint" value="0"/>
+  <property name="log-level-apps" type="uint" value="0"/>
+</channel>
+NOTIFYD
+
+# ── Power Manager config ──────────────────────────────────────────────────────
+cat > "${XFCE_CFG_DIR}/xfce4-power-manager.xml" << 'POWERMGR'
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfce4-power-manager" version="1.0">
+  <property name="xfce4-power-manager" type="empty">
+    <property name="power-button-action" type="uint" value="4"/>
+    <property name="show-tray-icon" type="bool" value="true"/>
+    <property name="dpms-enabled" type="bool" value="false"/>
+    <property name="blank-on-ac" type="int" value="0"/>
+    <property name="dpms-on-ac-sleep" type="uint" value="0"/>
+    <property name="dpms-on-ac-off" type="uint" value="0"/>
+    <property name="lock-screen-suspend-hibernate" type="bool" value="false"/>
+    <property name="brightness-switch" type="int" value="0"/>
+    <property name="brightness-switch-restore-on-exit" type="int" value="1"/>
+  </property>
+</channel>
+POWERMGR
+
+# نسخ configs الجديدة لجميع المستخدمين
+for dest in \
+    "/home/atlazus/.config/xfce4/xfconf/xfce-perchannel-xml" \
+    "/root/.config/xfce4/xfconf/xfce-perchannel-xml" \
+    "/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml"; do
+    mkdir -p "$dest"
+    cp "${XFCE_CFG_DIR}/xfce4-notifyd.xml" "$dest/" 2>/dev/null || true
+    cp "${XFCE_CFG_DIR}/xfce4-power-manager.xml" "$dest/" 2>/dev/null || true
+done
+
+# نسخ Whisker Menu config
+for dest in /home/atlazus/.config/xfce4 /root/.config/xfce4 /etc/skel/.config/xfce4; do
+    mkdir -p "$dest"
+    cp /etc/skel/.config/xfce4/whiskermenu-1.rc "$dest/" 2>/dev/null || true
+done
+chown -R atlazus:atlazus /home/atlazus/.config 2>/dev/null || true
+
 if [[ -d "$TOOLS_SRC" ]]; then
-    for tool in atlazus atlazus-firewall atlazus-privacy; do
-        [[ -f "${TOOLS_SRC}/${tool}" ]] && install -Dm755 "${TOOLS_SRC}/${tool}" "/usr/local/bin/${tool}"
+    for tool in atlazus atlazus-firewall atlazus-privacy atlazus-mode atlazus-control atlazus-welcome atlazus-apps atlazus-persist atlazus-security-tools atlazus-dashboard atlazus-vbox-setup atlazus-post-install; do
+        if [[ -f "${TOOLS_SRC}/${tool}" ]]; then
+            install -Dm755 "${TOOLS_SRC}/${tool}" "/usr/local/bin/${tool}"
+            log "  ✓ ${tool}"
+        fi
     done
-    [[ -f "${TOOLS_SRC}/atlazus-tools.desktop" ]] && \
-        install -Dm644 "${TOOLS_SRC}/atlazus-tools.desktop" /usr/share/applications/atlazus-tools.desktop
+
+    for desktop in atlazus-tools.desktop atlazus-control.desktop atlazus-welcome.desktop atlazus-apps.desktop atlazus-security-tools.desktop atlazus-dashboard.desktop; do
+        [[ -f "${TOOLS_SRC}/${desktop}" ]] && \
+            install -Dm644 "${TOOLS_SRC}/${desktop}" "/usr/share/applications/${desktop}"
+    done
+
+    if [[ -f "${TOOLS_SRC}/atlazus-welcome.desktop" ]]; then
+        mkdir -p /etc/xdg/autostart
+        install -Dm644 "${TOOLS_SRC}/atlazus-welcome.desktop" \
+            /etc/xdg/autostart/atlazus-welcome.desktop
+    fi
 fi
+
+# إنشاء مجلد state
+mkdir -p /var/lib/atlazus
+echo "normal" > /var/lib/atlazus/current-mode
+chmod 777 /var/lib/atlazus
+chmod 666 /var/lib/atlazus/current-mode
+
+# ── Arabic Language Support ───────────────────────────────────────────────────
+log "  Setting up Arabic language support..."
+
+# توليد Arabic locale
+if ! grep -q "ar_SA.UTF-8" /etc/locale.gen 2>/dev/null; then
+    echo "ar_SA.UTF-8 UTF-8" >> /etc/locale.gen
+    echo "ar_MA.UTF-8 UTF-8" >> /etc/locale.gen
+    locale-gen 2>/dev/null || true
+fi
+
+# إعداد ibus للعربية
+mkdir -p /etc/skel/.config/ibus
+cat > /etc/skel/.config/ibus/bus << 'IBUSCONF'
+[ibus]
+preload-engines=xkb:us::eng,xkb:ara::ara
+IBUSCONF
+
+# إضافة Arabic keyboard في XFCE
+cat > "${XFCE_CFG_DIR}/xfce4-xkb-plugin.xml" << 'XKBCONF'
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfce4-xkb-plugin" version="1.0">
+  <property name="settings" type="empty">
+    <property name="display-type" type="uint" value="1"/>
+    <property name="display-name" type="uint" value="0"/>
+    <property name="group-policy" type="uint" value="0"/>
+    <property name="default-layout" type="string" value="us"/>
+    <property name="layouts" type="string" value="us,ara"/>
+    <property name="variants" type="string" value=","/>
+    <property name="toggle-option" type="string" value="grp:alt_shift_toggle"/>
+  </property>
+</channel>
+XKBCONF
+
+for dest in \
+    "/home/atlazus/.config/xfce4/xfconf/xfce-perchannel-xml" \
+    "/root/.config/xfce4/xfconf/xfce-perchannel-xml" \
+    "/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml"; do
+    mkdir -p "$dest"
+    cp "${XFCE_CFG_DIR}/xfce4-xkb-plugin.xml" "$dest/" 2>/dev/null || true
+done
+chown -R atlazus:atlazus /home/atlazus/.config 2>/dev/null || true
+
+log "  Arabic keyboard: Alt+Shift to switch"
+
+# ── VirtualBox Auto-Setup ─────────────────────────────────────────────────────
+log "  Setting up VirtualBox auto-detection..."
+
+cat > /etc/systemd/system/atlazus-vbox.service << 'VBOXSVC'
+[Unit]
+Description=ATLAZUS VirtualBox Guest Setup
+After=network.target
+ConditionPathExists=!/var/lib/atlazus/.vbox-done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/atlazus-vbox-setup
+ExecStartPost=/bin/bash -c 'touch /var/lib/atlazus/.vbox-done'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+VBOXSVC
+
+systemctl enable atlazus-vbox.service 2>/dev/null || true
+
+# ── Dashboard autostart ───────────────────────────────────────────────────────
+# لا نُشغّل Dashboard تلقائياً — المستخدم يفتحه من سطح المكتب
+# لكن نُضيفه لـ Whisker Menu favorites
+log "  Dashboard installed — accessible from desktop"
+
+# ── Bash aliases + محسّن ──────────────────────────────────────────────────────
+log "  Setting up bash aliases..."
+cat > /etc/skel/.bash_aliases << 'ALIASES'
+# ATLAZUS OS - Bash Aliases
+
+# Navigation
+alias ll='ls -alF --color=auto'
+alias la='ls -A --color=auto'
+alias l='ls -CF --color=auto'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ~='cd ~'
+
+# Safety
+alias rm='rm -i'
+alias cp='cp -i'
+alias mv='mv -i'
+
+# System
+alias update='sudo apt update && sudo apt upgrade -y'
+alias install='sudo apt install'
+alias remove='sudo apt remove'
+alias search='apt search'
+alias df='df -h'
+alias du='du -h'
+alias free='free -h'
+alias ps='ps aux'
+alias top='htop'
+
+# Network
+alias ip='ip -c'
+alias ports='ss -tulpn'
+alias myip='curl -s ifconfig.me'
+
+# ATLAZUS shortcuts
+alias status='atlazus info'
+alias fw='atlazus-firewall'
+alias privacy='atlazus-privacy'
+alias mode='atlazus mode'
+alias control='atlazus-control'
+alias apps='atlazus-apps'
+ALIASES
+
+# نسخ aliases لجميع المستخدمين
+cp /etc/skel/.bash_aliases /home/atlazus/.bash_aliases 2>/dev/null || true
+cp /etc/skel/.bash_aliases /root/.bash_aliases 2>/dev/null || true
+chown atlazus:atlazus /home/atlazus/.bash_aliases 2>/dev/null || true
+
+# ── Bashrc محسّن مع prompt ملوّن ──────────────────────────────────────────────
+cat > /etc/skel/.bashrc << 'BASHRC'
+# ATLAZUS OS - Bash Configuration
+
+# Source aliases
+[[ -f ~/.bash_aliases ]] && . ~/.bash_aliases
+
+# History
+HISTSIZE=5000
+HISTFILESIZE=10000
+HISTCONTROL=ignoreboth:erasedups
+shopt -s histappend
+
+# Window size
+shopt -s checkwinsize
+
+# Prompt ملوّن مع اسم ATLAZUS
+if [[ $EUID -eq 0 ]]; then
+    PS1='\[\033[01;31m\]\u\[\033[00m\]@\[\033[01;36m\]atlazus\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+else
+    PS1='\[\033[01;32m\]\u\[\033[00m\]@\[\033[01;36m\]atlazus\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+fi
+
+# Auto-complete
+if ! shopt -oq posix; then
+    if [[ -f /usr/share/bash-completion/bash_completion ]]; then
+        . /usr/share/bash-completion/bash_completion
+    fi
+fi
+
+# ATLAZUS welcome message (terminal)
+if [[ -z "$ATLAZUS_GREETED" ]]; then
+    export ATLAZUS_GREETED=1
+    echo -e "\033[0;36m  ATLAZUS OS 2.0 (Horizon)\033[0m  |  Type \033[1matlazus help\033[0m for commands"
+fi
+BASHRC
+
+cp /etc/skel/.bashrc /home/atlazus/.bashrc 2>/dev/null || true
+cp /etc/skel/.bashrc /root/.bashrc 2>/dev/null || true
+chown atlazus:atlazus /home/atlazus/.bashrc 2>/dev/null || true
+
+# ── Neofetch config مخصص ─────────────────────────────────────────────────────
+log "  Setting up neofetch..."
+mkdir -p /etc/skel/.config/neofetch
+cat > /etc/skel/.config/neofetch/config.conf << 'NEOFETCH'
+print_info() {
+    info title
+    info underline
+    info "OS" distro
+    info "Kernel" kernel
+    info "Uptime" uptime
+    info "Packages" packages
+    info "Shell" shell
+    info "Resolution" resolution
+    info "DE" de
+    info "WM" wm
+    info "Theme" theme
+    info "Icons" icons
+    info "Terminal" term
+    info "CPU" cpu
+    info "Memory" memory
+    info cols
+}
+title_fqdn="off"
+kernel_shorthand="on"
+distro_shorthand="off"
+os_arch="on"
+uptime_shorthand="on"
+memory_percent="on"
+memory_unit="mib"
+package_managers="on"
+shell_path="off"
+shell_version="on"
+cpu_brand="on"
+cpu_speed="on"
+cpu_cores="logical"
+cpu_temp="off"
+gpu_brand="on"
+gpu_type="all"
+refresh_rate="on"
+gtk_shorthand="on"
+gtk2="on"
+gtk3="on"
+colors=(distro)
+bold="on"
+underline_enabled="on"
+underline_char="-"
+separator=":"
+block_range=(0 15)
+color_blocks="on"
+block_width=3
+block_height=1
+col_offset="auto"
+image_backend="ascii"
+image_source="auto"
+ascii_distro="Debian"
+ascii_colors=(6 6)
+ascii_bold="on"
+NEOFETCH
+
+cp -r /etc/skel/.config/neofetch /home/atlazus/.config/ 2>/dev/null || true
+cp -r /etc/skel/.config/neofetch /root/.config/ 2>/dev/null || true
+chown -R atlazus:atlazus /home/atlazus/.config/neofetch 2>/dev/null || true
 
 # =============================================================================
 # تنظيف

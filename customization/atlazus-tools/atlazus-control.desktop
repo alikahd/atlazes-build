@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ATLAZUS Control Center
+Comment=Security and Privacy Control Center
+Exec=/usr/local/bin/atlazus-control
+Icon=atlazus
+Terminal=false
+Categories=System;Settings;Security;
+Keywords=atlazus;security;privacy;firewall;tor;

@@ -1,0 +1,29 @@
+---
+componentName: atlazus
+
+strings:
+    productName:         "ATLAZUS OS"
+    shortProductName:    "ATLAZUS"
+    version:             "2.0"
+    shortVersion:        "2.0"
+    versionedName:       "ATLAZUS OS 2.0"
+    shortVersionedName:  "ATLAZUS 2.0"
+    bootloaderEntryName: "ATLAZUS OS"
+    productUrl:          "https://github.com/atlazus/atlazus-os"
+    supportUrl:          "https://github.com/atlazus/atlazus-os/issues"
+    knownIssuesUrl:      "https://github.com/atlazus/atlazus-os/issues"
+    releaseNotesUrl:     "https://github.com/atlazus/atlazus-os/releases"
+
+images:
+    productLogo:         "logo.png"
+    productIcon:         "logo.png"
+    productWelcome:      "welcome.png"
+
+slideshow:               "show.qml"
+slideshowAPI:            2
+
+style:
+    sidebarBackground:    "#0a0e27"
+    sidebarText:          "#c9d1d9"
+    sidebarTextSelect:    "#ffffff"
+    sidebarTextHighlight: "#00d4ff"

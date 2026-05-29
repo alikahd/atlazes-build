@@ -73,8 +73,24 @@ cmd_info() {
 }
 
 cmd_update() {
+    sudo timedatectl set-ntp true 2>/dev/null || true
+    sudo systemctl restart systemd-timesyncd.service 2>/dev/null || true
     echo -e "${GREEN}[+]${NC} تحديث قوائم الحزم..."
-    sudo apt-get update
+    local tries=3
+    local delay=5
+    local i
+    for ((i=1; i<=tries; i++)); do
+        if sudo apt-get update; then
+            break
+        fi
+        if [[ "$i" -eq "$tries" ]]; then
+            echo "apt-get update failed after ${tries} attempts." >&2
+            return 1
+        fi
+        echo "apt-get update failed; retrying in ${delay}s..."
+        sleep "$delay"
+        delay=$((delay * 2))
+    done
     echo -e "${GREEN}[+]${NC} ترقية الحزم..."
     sudo apt-get upgrade -y
     echo -e "${GREEN}[+]${NC} اكتمل التحديث."

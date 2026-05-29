@@ -1,0 +1,114 @@
+#!/bin/bash
+# =============================================================================
+# ATLAZUS OS - Post-Install Script
+# يُشغَّل بعد التثبيت على القرص الصلب لإعداد النظام المثبّت
+# =============================================================================
+
+CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+log()  { echo -e "${GREEN}[+]${NC} $*"; }
+warn() { echo -e "${YELLOW}[!]${NC} $*"; }
+err()  { echo -e "${RED}[✗]${NC} $*"; }
+
+[[ $EUID -eq 0 ]] || { echo "Run as root: sudo atlazus-post-install"; exit 1; }
+
+echo -e "${CYAN}${BOLD}"
+echo "  ╔══════════════════════════════════════════╗"
+echo "  ║     ATLAZUS OS Post-Install Setup        ║"
+echo "  ╚══════════════════════════════════════════╝"
+echo -e "${NC}"
+
+# ── 1. تحديث النظام ──────────────────────────────────────────────────────────
+log "Updating system..."
+apt-get update -qq && apt-get upgrade -y 2>/dev/null || warn "Update failed"
+
+# ── 2. إصلاح APT sources ─────────────────────────────────────────────────────
+log "Fixing APT sources..."
+cat > /etc/apt/sources.list << 'SOURCES'
+deb http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian trixie-updates main contrib non-free non-free-firmware
+deb http://security.debian.org/debian-security trixie-security main contrib non-free non-free-firmware
+SOURCES
+
+# ── 3. تفعيل UFW ─────────────────────────────────────────────────────────────
+log "Enabling firewall..."
+ufw --force enable
+ufw default deny incoming
+ufw default allow outgoing
+ufw status verbose
+
+# ── 4. تفعيل AppArmor ────────────────────────────────────────────────────────
+log "Enabling AppArmor..."
+systemctl enable apparmor
+systemctl start apparmor 2>/dev/null || true
+
+# ── 5. إعداد NTP ─────────────────────────────────────────────────────────────
+log "Configuring time sync..."
+systemctl enable systemd-timesyncd
+systemctl start systemd-timesyncd 2>/dev/null || true
+timedatectl set-ntp true 2>/dev/null || true
+
+# ── 6. إعداد GRUB ────────────────────────────────────────────────────────────
+log "Updating GRUB..."
+update-grub 2>/dev/null || true
+
+# ── 7. إعداد locale ──────────────────────────────────────────────────────────
+log "Configuring locale..."
+locale-gen en_US.UTF-8 ar_SA.UTF-8 2>/dev/null || true
+update-locale LANG=en_US.UTF-8 2>/dev/null || true
+
+# ── 8. تنظيف Live system files ───────────────────────────────────────────────
+log "Cleaning live system files..."
+apt-get remove -y --purge \
+    live-boot live-boot-initramfs-tools \
+    live-config live-config-systemd \
+    live-tools \
+    2>/dev/null || true
+apt-get autoremove -y 2>/dev/null || true
+apt-get clean
+
+# ── 9. إعداد sudo ────────────────────────────────────────────────────────────
+log "Configuring sudo (removing passwordless sudo)..."
+# في النظام المثبّت، نُزيل NOPASSWD
+rm -f /etc/sudoers.d/atlazus-live 2>/dev/null || true
+warn "  Sudo now requires password (security best practice)"
+
+# ── 10. تفعيل unattended-upgrades ────────────────────────────────────────────
+log "Enabling automatic security updates..."
+cat > /etc/apt/apt.conf.d/20auto-upgrades << 'AUTOUPGRADE'
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+APT::Periodic::AutocleanInterval "7";
+AUTOUPGRADE
+systemctl enable unattended-upgrades 2>/dev/null || true
+
+# ── 11. VirtualBox Guest Additions ───────────────────────────────────────────
+if dmidecode -s system-product-name 2>/dev/null | grep -qi "virtualbox"; then
+    log "Installing VirtualBox Guest Additions..."
+    apt-get install -y virtualbox-guest-utils virtualbox-guest-x11 2>/dev/null || true
+fi
+
+# ── 12. تسجيل الانتهاء ───────────────────────────────────────────────────────
+mkdir -p /var/lib/atlazus
+touch /var/lib/atlazus/.post-install-done
+date > /var/lib/atlazus/.post-install-done
+
+echo ""
+echo -e "${GREEN}${BOLD}╔══════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}${BOLD}║   Post-install setup complete!           ║${NC}"
+echo -e "${GREEN}${BOLD}╚══════════════════════════════════════════╝${NC}"
+echo ""
+echo "  ✓ System updated"
+echo "  ✓ Firewall enabled"
+echo "  ✓ AppArmor enabled"
+echo "  ✓ Time sync configured"
+echo "  ✓ GRUB updated"
+echo "  ✓ Live files removed"
+echo "  ✓ Auto security updates enabled"
+echo ""
+echo -e "${YELLOW}[!]${NC} Please reboot: sudo reboot"

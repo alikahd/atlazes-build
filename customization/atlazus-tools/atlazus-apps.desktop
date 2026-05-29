@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ATLAZUS App Store
+Comment=Install recommended applications
+Exec=/usr/local/bin/atlazus-apps
+Icon=system-software-install
+Terminal=false
+Categories=System;PackageManager;
+Keywords=install;apps;software;atlazus;

@@ -198,7 +198,7 @@ echo "[ATLAZUS] Firejail configured."
 echo "[ATLAZUS] Disabling unnecessary services..."
 
 # خدمات لا نحتاجها في نظام أمني
-for svc in avahi-daemon cups bluetooth; do
+for svc in avahi-daemon cups; do
     if systemctl list-unit-files "${svc}.service" &>/dev/null 2>&1; then
         systemctl disable "${svc}.service" 2>/dev/null || true
     fi

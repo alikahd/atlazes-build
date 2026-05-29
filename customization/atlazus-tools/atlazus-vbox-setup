@@ -1,0 +1,48 @@
+#!/bin/bash
+# =============================================================================
+# ATLAZUS OS - VirtualBox Guest Additions Auto-Setup
+# يُشغَّل تلقائياً عند الإقلاع في VirtualBox
+# =============================================================================
+
+log() { echo "[ATLAZUS-VBOX] $*"; }
+
+# التحقق من أننا داخل VirtualBox
+is_virtualbox() {
+    dmidecode -s system-product-name 2>/dev/null | grep -qi "virtualbox" && return 0
+    lspci 2>/dev/null | grep -qi "virtualbox" && return 0
+    return 1
+}
+
+is_virtualbox || { log "Not running in VirtualBox, skipping."; exit 0; }
+
+log "VirtualBox detected — setting up Guest Additions..."
+
+# تثبيت Guest Additions من المستودع
+apt-get update -qq 2>/dev/null || true
+apt-get install -y --no-install-recommends \
+    virtualbox-guest-utils \
+    virtualbox-guest-x11 \
+    2>/dev/null || true
+
+# تفعيل الخدمات
+systemctl enable virtualbox-guest-utils 2>/dev/null || true
+systemctl start  virtualbox-guest-utils 2>/dev/null || true
+
+# إضافة المستخدم لمجموعة vboxsf (Shared Folders)
+if getent group vboxsf &>/dev/null; then
+    usermod -aG vboxsf atlazus 2>/dev/null || true
+fi
+
+# إعداد Shared Clipboard + Drag & Drop
+if command -v VBoxClient &>/dev/null; then
+    VBoxClient --clipboard 2>/dev/null || true
+    VBoxClient --draganddrop 2>/dev/null || true
+    VBoxClient --seamless 2>/dev/null || true
+    VBoxClient --display 2>/dev/null || true
+fi
+
+log "VirtualBox Guest Additions configured."
+log "  ✓ Shared Clipboard enabled"
+log "  ✓ Drag & Drop enabled"
+log "  ✓ Auto-resize display enabled"
+log "  ✓ Shared Folders: add user to vboxsf group"

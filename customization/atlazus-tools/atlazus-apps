@@ -1,0 +1,137 @@
+#!/bin/bash
+# =============================================================================
+# ATLAZUS OS - App Store (CLI + GUI)
+# قائمة تطبيقات موصى بها مع تثبيت بنقرة واحدة
+# =============================================================================
+
+if command -v zenity &>/dev/null && [[ -n "$DISPLAY" ]]; then
+    GUI=1
+else
+    GUI=0
+fi
+
+declare -A APPS_NAME APPS_DESC APPS_PKG
+
+# Security
+APPS_NAME[clamav]="ClamAV Antivirus"
+APPS_DESC[clamav]="Open-source antivirus engine"
+APPS_PKG[clamav]="clamav clamav-daemon clamtk"
+
+APPS_NAME[rkhunter]="Rootkit Hunter"
+APPS_DESC[rkhunter]="Scan for rootkits and malware"
+APPS_PKG[rkhunter]="rkhunter"
+
+APPS_NAME[lynis]="Lynis Security Auditor"
+APPS_DESC[lynis]="System security auditing tool"
+APPS_PKG[lynis]="lynis"
+
+APPS_NAME[aide]="AIDE IDS"
+APPS_DESC[aide]="Advanced Intrusion Detection Environment"
+APPS_PKG[aide]="aide aide-common"
+
+# Privacy
+APPS_NAME[torbrowser]="Tor Browser"
+APPS_DESC[torbrowser]="Anonymous web browsing"
+APPS_PKG[torbrowser]="torbrowser-launcher"
+
+APPS_NAME[thunderbird]="Thunderbird"
+APPS_DESC[thunderbird]="Secure email client"
+APPS_PKG[thunderbird]="thunderbird"
+
+APPS_NAME[veracrypt]="VeraCrypt"
+APPS_DESC[veracrypt]="Disk encryption software"
+APPS_PKG[veracrypt]="veracrypt"
+
+# Development
+APPS_NAME[vscode]="VSCodium"
+APPS_DESC[vscode]="Open-source VS Code (no telemetry)"
+APPS_PKG[vscode]="codium"
+
+APPS_NAME[git]="Git"
+APPS_DESC[git]="Version control system"
+APPS_PKG[git]="git"
+
+APPS_NAME[python3]="Python 3"
+APPS_DESC[python3]="Python programming language"
+APPS_PKG[python3]="python3 python3-pip"
+
+# Productivity
+APPS_NAME[libreoffice]="LibreOffice"
+APPS_DESC[libreoffice]="Full office suite"
+APPS_PKG[libreoffice]="libreoffice"
+
+APPS_NAME[gimp]="GIMP"
+APPS_DESC[gimp]="Image editor"
+APPS_PKG[gimp]="gimp"
+
+APPS_NAME[vlc]="VLC"
+APPS_DESC[vlc]="Media player"
+APPS_PKG[vlc]="vlc"
+
+install_app() {
+    local app_id="$1"
+    local pkgs="${APPS_PKG[$app_id]}"
+    echo "Installing ${APPS_NAME[$app_id]}..."
+    sudo apt-get update -qq && sudo apt-get install -y $pkgs
+}
+
+if [[ $GUI -eq 1 ]]; then
+    # GUI mode
+    while true; do
+        CHOICE=$(zenity --list \
+            --title="ATLAZUS App Store" \
+            --text="<b>ATLAZUS OS — Recommended Applications</b>\nSelect an app to install:" \
+            --column="App" --column="Category" --column="Description" \
+            --width=700 --height=500 \
+            "ClamAV Antivirus"    "Security"     "Open-source antivirus" \
+            "Rootkit Hunter"      "Security"     "Scan for rootkits" \
+            "Lynis Auditor"       "Security"     "Security audit tool" \
+            "Tor Browser"         "Privacy"      "Anonymous browsing" \
+            "Thunderbird"         "Privacy"      "Secure email" \
+            "VSCodium"            "Development"  "Code editor (no telemetry)" \
+            "Git"                 "Development"  "Version control" \
+            "Python 3"            "Development"  "Programming language" \
+            "LibreOffice"         "Productivity" "Office suite" \
+            "GIMP"                "Productivity" "Image editor" \
+            "VLC"                 "Productivity" "Media player" \
+            "❌ Exit"             ""             "Close App Store" \
+            2>/dev/null)
+
+        [[ -z "$CHOICE" || "$CHOICE" == "❌ Exit" ]] && break
+
+        declare -A GUI_MAP=(
+            ["ClamAV Antivirus"]="clamav"
+            ["Rootkit Hunter"]="rkhunter"
+            ["Lynis Auditor"]="lynis"
+            ["Tor Browser"]="torbrowser"
+            ["Thunderbird"]="thunderbird"
+            ["VSCodium"]="vscode"
+            ["Git"]="git"
+            ["Python 3"]="python3"
+            ["LibreOffice"]="libreoffice"
+            ["GIMP"]="gimp"
+            ["VLC"]="vlc"
+        )
+
+        app_id="${GUI_MAP[$CHOICE]}"
+        if [[ -n "$app_id" ]]; then
+            xfce4-terminal --title="Installing ${CHOICE}" --hold \
+                -e "bash -c 'sudo apt-get update -qq && sudo apt-get install -y ${APPS_PKG[$app_id]}; echo; echo Done. Press Enter; read'" &
+        fi
+    done
+else
+    # CLI mode
+    echo "ATLAZUS App Store"
+    echo ""
+    echo "Available apps:"
+    for id in "${!APPS_NAME[@]}"; do
+        echo "  $id — ${APPS_NAME[$id]}: ${APPS_DESC[$id]}"
+    done
+    echo ""
+    echo "Usage: atlazus-apps install <app-id>"
+    echo "Example: atlazus-apps install clamav"
+
+    if [[ "${1:-}" == "install" && -n "${2:-}" ]]; then
+        install_app "$2"
+    fi
+fi

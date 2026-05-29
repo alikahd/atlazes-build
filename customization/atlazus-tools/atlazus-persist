@@ -1,0 +1,100 @@
+#!/bin/bash
+# =============================================================================
+# ATLAZUS OS - Persistent Storage Manager
+# حفظ الإعدادات على USB بين الجلسات (مشفّر)
+# =============================================================================
+
+CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+usage() {
+    cat << EOF
+${BOLD}ATLAZUS Persistent Storage${NC}
+
+Usage: atlazus-persist <command>
+
+Commands:
+  create <device>   Create encrypted persistent partition on USB
+                    Example: atlazus-persist create /dev/sdb
+  status            Show persistence status
+  help              Show this help
+
+Note: Persistence requires booting with 'persistence' kernel parameter.
+      Add 'persistence' to GRUB boot options.
+EOF
+}
+
+check_root() {
+    [[ $EUID -eq 0 ]] || { echo "Run as root: sudo atlazus-persist $*"; exit 1; }
+}
+
+create_persistence() {
+    local device="$1"
+    check_root
+
+    [[ -b "$device" ]] || { echo "Error: $device is not a block device"; exit 1; }
+
+    echo -e "${YELLOW}[!]${NC} This will create a persistent partition on ${device}"
+    echo -e "${RED}[!]${NC} WARNING: This may destroy data on the device!"
+    echo -n "Continue? (yes/no): "
+    read -r confirm
+    [[ "$confirm" == "yes" ]] || { echo "Cancelled."; exit 0; }
+
+    echo -e "${GREEN}[+]${NC} Creating persistence partition..."
+
+    # إنشاء partition
+    local part="${device}3"
+    echo -e "${GREEN}[+]${NC} Creating partition on ${device}..."
+    parted -s "$device" mkpart primary ext4 "100%" "100%" 2>/dev/null || {
+        echo "Using remaining space..."
+        parted -s "$device" mkpart primary ext4 "3GiB" "100%"
+    }
+
+    sleep 1
+    partprobe "$device" 2>/dev/null || true
+    sleep 1
+
+    # تشفير بـ LUKS
+    echo -e "${GREEN}[+]${NC} Setting up LUKS encryption..."
+    echo -e "${YELLOW}[!]${NC} Enter a passphrase for the persistent storage:"
+    cryptsetup luksFormat "$part"
+    echo -e "${YELLOW}[!]${NC} Enter the passphrase again to open:"
+    cryptsetup luksOpen "$part" atlazus-persist
+
+    # تهيئة
+    mkfs.ext4 -L persistence /dev/mapper/atlazus-persist
+    mkdir -p /mnt/atlazus-persist
+    mount /dev/mapper/atlazus-persist /mnt/atlazus-persist
+
+    # إعداد persistence.conf
+    echo "/ union" > /mnt/atlazus-persist/persistence.conf
+
+    umount /mnt/atlazus-persist
+    cryptsetup luksClose atlazus-persist
+
+    echo -e "${GREEN}[✓]${NC} Persistent storage created on ${part}"
+    echo -e "${YELLOW}[!]${NC} To use: reboot with 'persistence' in kernel parameters"
+    echo -e "${YELLOW}[!]${NC} In GRUB, add 'persistence persistence-encryption=luks' to boot line"
+}
+
+show_status() {
+    echo -e "${CYAN}${BOLD}ATLAZUS Persistent Storage Status${NC}"
+    echo ""
+    if grep -q "persistence" /proc/cmdline 2>/dev/null; then
+        echo -e "  Persistence: ${GREEN}ACTIVE${NC}"
+    else
+        echo -e "  Persistence: ${YELLOW}INACTIVE${NC} (not booted with persistence)"
+    fi
+    echo ""
+    echo "  Boot parameters: $(cat /proc/cmdline 2>/dev/null | tr ' ' '\n' | grep -E 'persist' || echo 'none')"
+}
+
+case "${1:-help}" in
+    create)   create_persistence "${2:-}" ;;
+    status)   show_status ;;
+    help|*)   usage ;;
+esac

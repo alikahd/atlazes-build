@@ -1,0 +1,77 @@
+#!/bin/bash
+# =============================================================================
+# ATLAZUS OS - Control Center (GUI)
+# واجهة رسومية لإدارة الأمان والخصوصية
+# =============================================================================
+
+if ! command -v zenity &>/dev/null; then
+    echo "zenity not found. Install with: sudo apt install zenity"
+    exit 1
+fi
+
+while true; do
+    # قراءة الحالة الحالية
+    FW_STATUS=$(sudo ufw status 2>/dev/null | head -1 | awk '{print $2}' || echo "unknown")
+    TOR_STATUS=$(systemctl is-active tor 2>/dev/null || echo "inactive")
+    MODE=$(cat /var/lib/atlazus/current-mode 2>/dev/null || echo "normal")
+    DNS_IP=$(grep nameserver /etc/resolv.conf 2>/dev/null | head -1 | awk '{print $2}' || echo "default")
+    APPARMOR=$(systemctl is-active apparmor 2>/dev/null || echo "inactive")
+
+    CHOICE=$(zenity --list \
+        --title="ATLAZUS OS Control Center" \
+        --text="<b>ATLAZUS OS 2.0 — Control Center</b>\n\nMode: <b>${MODE^^}</b>  |  Firewall: <b>${FW_STATUS}</b>  |  Tor: <b>${TOR_STATUS}</b>  |  DNS: <b>${DNS_IP}</b>" \
+        --column="Action" \
+        --column="Status" \
+        --width=650 --height=450 \
+        "🔒 Firewall ON"        "Enable UFW firewall" \
+        "🔓 Firewall OFF"       "Disable UFW firewall" \
+        "📋 Firewall Rules"     "View current firewall rules" \
+        "🌐 Normal Mode"        "Default settings (mode: normal)" \
+        "🕵️ Privacy Mode"       "MAC random + DNS Quad9 (mode: privacy)" \
+        "👻 Stealth Mode"       "Privacy + Tor routing (mode: stealth)" \
+        "🧅 Tor ON"             "Start Tor service" \
+        "🚫 Tor OFF"            "Stop Tor service" \
+        "📊 System Status"      "Full security status report" \
+        "🔄 Update System"      "Run apt update + upgrade" \
+        "🛡️ Security Tools"     "Install pentesting tools" \
+        "❌ Exit"               "Close Control Center" \
+        2>/dev/null)
+
+    [[ -z "$CHOICE" || "$CHOICE" == "❌ Exit" ]] && break
+
+    case "$CHOICE" in
+        "🔒 Firewall ON")
+            xfce4-terminal --title="Firewall" --hold -e "bash -c 'sudo ufw --force enable; sudo ufw status verbose; read'" &
+            ;;
+        "🔓 Firewall OFF")
+            xfce4-terminal --title="Firewall" --hold -e "bash -c 'sudo ufw disable; read'" &
+            ;;
+        "📋 Firewall Rules")
+            xfce4-terminal --title="Firewall Rules" --hold -e "bash -c 'sudo ufw status verbose; read'" &
+            ;;
+        "🌐 Normal Mode")
+            xfce4-terminal --title="Mode" --hold -e "bash -c 'sudo atlazus-mode normal; read'" &
+            ;;
+        "🕵️ Privacy Mode")
+            xfce4-terminal --title="Privacy Mode" --hold -e "bash -c 'sudo atlazus-mode privacy; read'" &
+            ;;
+        "👻 Stealth Mode")
+            xfce4-terminal --title="Stealth Mode" --hold -e "bash -c 'sudo atlazus-mode stealth; read'" &
+            ;;
+        "🧅 Tor ON")
+            xfce4-terminal --title="Tor" --hold -e "bash -c 'sudo systemctl start tor; systemctl status tor --no-pager; read'" &
+            ;;
+        "🚫 Tor OFF")
+            xfce4-terminal --title="Tor" --hold -e "bash -c 'sudo systemctl stop tor; echo Tor stopped; read'" &
+            ;;
+        "📊 System Status")
+            xfce4-terminal --title="ATLAZUS Status" --hold -e "bash -c 'atlazus info; echo; atlazus-privacy status; read'" &
+            ;;
+        "🔄 Update System")
+            xfce4-terminal --title="System Update" --hold -e "bash -c 'sudo apt update && sudo apt upgrade -y; read'" &
+            ;;
+        "🛡️ Security Tools")
+            atlazus-security-tools &
+            ;;
+    esac
+done

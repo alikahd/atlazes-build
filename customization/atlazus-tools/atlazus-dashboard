@@ -1,0 +1,462 @@
+#!/usr/bin/env python3
+# =============================================================================
+# ATLAZUS OS - Dashboard (GTK3)
+# واجهة رسومية حقيقية لعرض حالة النظام والأمان
+# =============================================================================
+
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk, GLib, Gdk, Pango
+import subprocess
+import os
+import threading
+import time
+
+ATLAZUS_DARK  = "#0a0e27"
+ATLAZUS_BLUE  = "#00d4ff"
+ATLAZUS_PANEL = "#0d1230"
+ATLAZUS_CARD  = "#111827"
+ATLAZUS_TEXT  = "#c9d1d9"
+ATLAZUS_GREEN = "#3fb950"
+ATLAZUS_RED   = "#f85149"
+ATLAZUS_YELLOW= "#d29922"
+
+CSS = f"""
+window {{
+    background-color: {ATLAZUS_DARK};
+    color: {ATLAZUS_TEXT};
+}}
+.header {{
+    background-color: {ATLAZUS_PANEL};
+    border-bottom: 2px solid {ATLAZUS_BLUE};
+    padding: 12px 20px;
+}}
+.title {{
+    color: {ATLAZUS_BLUE};
+    font-size: 22px;
+    font-weight: bold;
+    font-family: Cantarell, sans-serif;
+}}
+.subtitle {{
+    color: {ATLAZUS_TEXT};
+    font-size: 11px;
+    opacity: 0.6;
+}}
+.card {{
+    background-color: {ATLAZUS_CARD};
+    border-radius: 8px;
+    border: 1px solid #1f2937;
+    padding: 16px;
+    margin: 6px;
+}}
+.card-title {{
+    color: {ATLAZUS_BLUE};
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}}
+.status-ok {{
+    color: {ATLAZUS_GREEN};
+    font-weight: bold;
+}}
+.status-warn {{
+    color: {ATLAZUS_YELLOW};
+    font-weight: bold;
+}}
+.status-err {{
+    color: {ATLAZUS_RED};
+    font-weight: bold;
+}}
+.btn-primary {{
+    background-color: {ATLAZUS_BLUE};
+    color: {ATLAZUS_DARK};
+    border-radius: 6px;
+    border: none;
+    padding: 8px 16px;
+    font-weight: bold;
+}}
+.btn-primary:hover {{
+    background-color: #33ddff;
+}}
+.btn-danger {{
+    background-color: {ATLAZUS_RED};
+    color: white;
+    border-radius: 6px;
+    border: none;
+    padding: 8px 16px;
+    font-weight: bold;
+}}
+.btn-success {{
+    background-color: {ATLAZUS_GREEN};
+    color: {ATLAZUS_DARK};
+    border-radius: 6px;
+    border: none;
+    padding: 8px 16px;
+    font-weight: bold;
+}}
+.metric-value {{
+    color: white;
+    font-size: 24px;
+    font-weight: bold;
+}}
+.metric-label {{
+    color: {ATLAZUS_TEXT};
+    font-size: 11px;
+    opacity: 0.7;
+}}
+.mode-badge {{
+    background-color: {ATLAZUS_BLUE};
+    color: {ATLAZUS_DARK};
+    border-radius: 12px;
+    padding: 4px 12px;
+    font-weight: bold;
+    font-size: 11px;
+}}
+"""
+
+def run_cmd(cmd, default="unknown"):
+    try:
+        result = subprocess.run(cmd, shell=True, capture_output=True,
+                                text=True, timeout=5)
+        return result.stdout.strip() or default
+    except:
+        return default
+
+def run_cmd_bool(cmd):
+    try:
+        result = subprocess.run(cmd, shell=True, capture_output=True, timeout=5)
+        return result.returncode == 0
+    except:
+        return False
+
+class AtlazusDashboard(Gtk.Window):
+    def __init__(self):
+        super().__init__(title="ATLAZUS OS Dashboard")
+        self.set_default_size(900, 650)
+        self.set_position(Gtk.WindowPosition.CENTER)
+        self.set_resizable(True)
+
+        # Apply CSS
+        css_provider = Gtk.CssProvider()
+        css_provider.load_from_data(CSS.encode())
+        Gtk.StyleContext.add_provider_for_screen(
+            Gdk.Screen.get_default(),
+            css_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+
+        self.build_ui()
+        self.refresh_data()
+        # Auto-refresh every 5 seconds
+        GLib.timeout_add_seconds(5, self.refresh_data)
+
+    def build_ui(self):
+        main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.add(main_box)
+
+        # Header
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        header.get_style_context().add_class("header")
+        header.set_spacing(12)
+
+        title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        title = Gtk.Label(label="ATLAZUS OS")
+        title.get_style_context().add_class("title")
+        title.set_halign(Gtk.Align.START)
+        subtitle = Gtk.Label(label="Security Dashboard — Version 2.0 (Horizon)")
+        subtitle.get_style_context().add_class("subtitle")
+        subtitle.set_halign(Gtk.Align.START)
+        title_box.pack_start(title, False, False, 0)
+        title_box.pack_start(subtitle, False, False, 0)
+
+        self.mode_label = Gtk.Label(label="● NORMAL")
+        self.mode_label.get_style_context().add_class("mode-badge")
+
+        header.pack_start(title_box, True, True, 0)
+        header.pack_end(self.mode_label, False, False, 0)
+        main_box.pack_start(header, False, False, 0)
+
+        # Scrollable content
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        content.set_margin_start(12)
+        content.set_margin_end(12)
+        content.set_margin_top(12)
+        content.set_margin_bottom(12)
+        scroll.add(content)
+        main_box.pack_start(scroll, True, True, 0)
+
+        # Row 1: Security Status Cards
+        row1 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        content.pack_start(row1, False, False, 0)
+
+        self.fw_card   = self._make_status_card("🔒 Firewall", "Checking...", "UFW Status")
+        self.aa_card   = self._make_status_card("🛡️ AppArmor", "Checking...", "MAC Status")
+        self.tor_card  = self._make_status_card("🧅 Tor", "Checking...", "Anonymity")
+        self.dns_card  = self._make_status_card("🌐 DNS", "Checking...", "Privacy DNS")
+
+        row1.pack_start(self.fw_card[0],  True, True, 0)
+        row1.pack_start(self.aa_card[0],  True, True, 0)
+        row1.pack_start(self.tor_card[0], True, True, 0)
+        row1.pack_start(self.dns_card[0], True, True, 0)
+
+        # Row 2: System Info + Quick Actions
+        row2 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        content.pack_start(row2, False, False, 0)
+
+        # System Info Card
+        sys_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        sys_card.get_style_context().add_class("card")
+        sys_title = Gtk.Label(label="💻 SYSTEM INFO")
+        sys_title.get_style_context().add_class("card-title")
+        sys_title.set_halign(Gtk.Align.START)
+        sys_card.pack_start(sys_title, False, False, 4)
+
+        self.sys_info_label = Gtk.Label(label="Loading...")
+        self.sys_info_label.set_halign(Gtk.Align.START)
+        self.sys_info_label.set_line_wrap(True)
+        self.sys_info_label.override_color(
+            Gtk.StateFlags.NORMAL, Gdk.RGBA(0.788, 0.820, 0.851, 1))
+        sys_card.pack_start(self.sys_info_label, True, True, 4)
+
+        # Quick Actions Card
+        actions_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        actions_card.get_style_context().add_class("card")
+        act_title = Gtk.Label(label="⚡ QUICK ACTIONS")
+        act_title.get_style_context().add_class("card-title")
+        act_title.set_halign(Gtk.Align.START)
+        actions_card.pack_start(act_title, False, False, 4)
+
+        actions_grid = Gtk.Grid()
+        actions_grid.set_row_spacing(6)
+        actions_grid.set_column_spacing(6)
+        actions_grid.set_margin_top(8)
+
+        btns = [
+            ("🔒 Firewall ON",    "primary", self.on_fw_on),
+            ("🔓 Firewall OFF",   "danger",  self.on_fw_off),
+            ("🕵️ Privacy Mode",   "primary", self.on_privacy),
+            ("👻 Stealth Mode",   "danger",  self.on_stealth),
+            ("🌐 Normal Mode",    "success", self.on_normal),
+            ("🧅 Tor ON",         "primary", self.on_tor_on),
+            ("🚫 Tor OFF",        "danger",  self.on_tor_off),
+            ("🔄 Update",         "success", self.on_update),
+        ]
+
+        for i, (label, style, callback) in enumerate(btns):
+            btn = Gtk.Button(label=label)
+            btn.get_style_context().add_class(f"btn-{style}")
+            btn.connect("clicked", callback)
+            actions_grid.attach(btn, i % 2, i // 2, 1, 1)
+
+        actions_card.pack_start(actions_grid, True, True, 4)
+
+        row2.pack_start(sys_card,     True, True, 0)
+        row2.pack_start(actions_card, True, True, 0)
+
+        # Row 3: Network Info
+        row3 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        content.pack_start(row3, False, False, 0)
+
+        net_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        net_card.get_style_context().add_class("card")
+        net_title = Gtk.Label(label="🌐 NETWORK")
+        net_title.get_style_context().add_class("card-title")
+        net_title.set_halign(Gtk.Align.START)
+        net_card.pack_start(net_title, False, False, 4)
+        self.net_label = Gtk.Label(label="Loading...")
+        self.net_label.set_halign(Gtk.Align.START)
+        self.net_label.override_color(
+            Gtk.StateFlags.NORMAL, Gdk.RGBA(0.788, 0.820, 0.851, 1))
+        net_card.pack_start(self.net_label, True, True, 4)
+
+        # Security Score Card
+        score_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        score_card.get_style_context().add_class("card")
+        score_title = Gtk.Label(label="🏆 SECURITY SCORE")
+        score_title.get_style_context().add_class("card-title")
+        score_title.set_halign(Gtk.Align.START)
+        score_card.pack_start(score_title, False, False, 4)
+        self.score_label = Gtk.Label(label="Calculating...")
+        self.score_label.get_style_context().add_class("metric-value")
+        self.score_label.set_halign(Gtk.Align.CENTER)
+        self.score_desc = Gtk.Label(label="")
+        self.score_desc.set_halign(Gtk.Align.CENTER)
+        score_card.pack_start(self.score_label, True, True, 8)
+        score_card.pack_start(self.score_desc, False, False, 4)
+
+        row3.pack_start(net_card,   True, True, 0)
+        row3.pack_start(score_card, True, True, 0)
+
+        # Status bar
+        self.statusbar = Gtk.Label(label="Ready")
+        self.statusbar.set_halign(Gtk.Align.START)
+        self.statusbar.set_margin_start(12)
+        self.statusbar.set_margin_bottom(6)
+        self.statusbar.override_color(
+            Gtk.StateFlags.NORMAL, Gdk.RGBA(0.4, 0.5, 0.6, 1))
+        main_box.pack_end(self.statusbar, False, False, 0)
+
+        self.show_all()
+
+    def _make_status_card(self, title, value, subtitle):
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        card.get_style_context().add_class("card")
+        t = Gtk.Label(label=title)
+        t.get_style_context().add_class("card-title")
+        t.set_halign(Gtk.Align.START)
+        v = Gtk.Label(label=value)
+        v.get_style_context().add_class("metric-value")
+        v.set_halign(Gtk.Align.CENTER)
+        s = Gtk.Label(label=subtitle)
+        s.get_style_context().add_class("metric-label")
+        s.set_halign(Gtk.Align.CENTER)
+        card.pack_start(t, False, False, 2)
+        card.pack_start(v, True, True, 8)
+        card.pack_start(s, False, False, 2)
+        return card, v
+
+    def refresh_data(self):
+        threading.Thread(target=self._fetch_data, daemon=True).start()
+        return True
+
+    def _fetch_data(self):
+        # Firewall
+        fw = run_cmd("ufw status 2>/dev/null | head -1 | awk '{print $2}'", "unknown")
+        fw_ok = fw.lower() == "active"
+
+        # AppArmor
+        aa = run_cmd("systemctl is-active apparmor 2>/dev/null", "inactive")
+        aa_ok = aa == "active"
+
+        # Tor
+        tor = run_cmd("systemctl is-active tor 2>/dev/null", "inactive")
+        tor_ok = tor == "active"
+
+        # DNS
+        dns = run_cmd("grep nameserver /etc/resolv.conf 2>/dev/null | head -1 | awk '{print $2}'", "default")
+
+        # Mode
+        mode = run_cmd("cat /var/lib/atlazus/current-mode 2>/dev/null", "normal")
+
+        # System info
+        hostname = run_cmd("hostname", "atlazus")
+        kernel   = run_cmd("uname -r", "unknown")
+        uptime   = run_cmd("uptime -p 2>/dev/null || uptime", "unknown")
+        mem      = run_cmd("free -h | awk '/^Mem:/{print $3\"/\"$2}'", "unknown")
+        cpu      = run_cmd("grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2 | xargs", "unknown")
+
+        # Network
+        iface = run_cmd("ip -o link show | awk -F': ' '$2!=\"lo\"{print $2;exit}'", "")
+        mac   = run_cmd(f"cat /sys/class/net/{iface}/address 2>/dev/null", "unknown") if iface else "unknown"
+        ip4   = run_cmd(f"ip -4 addr show {iface} 2>/dev/null | grep inet | awk '{{print $2}}'", "none") if iface else "none"
+
+        # Security score
+        score = 0
+        checks = []
+        if fw_ok:   score += 25; checks.append("✓ Firewall")
+        else:       checks.append("✗ Firewall")
+        if aa_ok:   score += 25; checks.append("✓ AppArmor")
+        else:       checks.append("✗ AppArmor")
+        if dns not in ["8.8.8.8", "1.1.1.1", "default"]: score += 25; checks.append("✓ Private DNS")
+        else:       checks.append("✗ Private DNS")
+        if tor_ok:  score += 25; checks.append("✓ Tor")
+        else:       checks.append("✗ Tor")
+
+        GLib.idle_add(self._update_ui,
+            fw, fw_ok, aa, aa_ok, tor, tor_ok, dns,
+            mode, hostname, kernel, uptime, mem, cpu,
+            iface, mac, ip4, score, checks)
+
+    def _update_ui(self, fw, fw_ok, aa, aa_ok, tor, tor_ok, dns,
+                   mode, hostname, kernel, uptime, mem, cpu,
+                   iface, mac, ip4, score, checks):
+        # Status cards
+        self.fw_card[1].set_text("ACTIVE" if fw_ok else "INACTIVE")
+        self.fw_card[1].get_style_context().remove_class("status-ok")
+        self.fw_card[1].get_style_context().remove_class("status-err")
+        self.fw_card[1].get_style_context().add_class("status-ok" if fw_ok else "status-err")
+
+        self.aa_card[1].set_text("ACTIVE" if aa_ok else "INACTIVE")
+        self.aa_card[1].get_style_context().remove_class("status-ok")
+        self.aa_card[1].get_style_context().remove_class("status-err")
+        self.aa_card[1].get_style_context().add_class("status-ok" if aa_ok else "status-warn")
+
+        self.tor_card[1].set_text("ACTIVE" if tor_ok else "INACTIVE")
+        self.tor_card[1].get_style_context().remove_class("status-ok")
+        self.tor_card[1].get_style_context().remove_class("status-warn")
+        self.tor_card[1].get_style_context().add_class("status-ok" if tor_ok else "status-warn")
+
+        self.dns_card[1].set_text(dns[:15] if dns else "default")
+
+        # Mode badge
+        mode_colors = {"normal": "#3fb950", "privacy": "#d29922", "stealth": "#f85149"}
+        color = mode_colors.get(mode, "#00d4ff")
+        self.mode_label.set_text(f"● {mode.upper()}")
+
+        # System info
+        self.sys_info_label.set_text(
+            f"Host:    {hostname}\n"
+            f"Kernel:  {kernel}\n"
+            f"Uptime:  {uptime}\n"
+            f"Memory:  {mem}\n"
+            f"CPU:     {cpu[:40] if cpu else 'unknown'}"
+        )
+
+        # Network
+        self.net_label.set_text(
+            f"Interface: {iface or 'none'}\n"
+            f"IP:        {ip4 or 'none'}\n"
+            f"MAC:       {mac}\n"
+            f"DNS:       {dns}"
+        )
+
+        # Score
+        if score >= 75:
+            self.score_label.set_text(f"{score}/100")
+            self.score_label.get_style_context().remove_class("status-warn")
+            self.score_label.get_style_context().remove_class("status-err")
+            self.score_label.get_style_context().add_class("status-ok")
+            self.score_desc.set_text("Good Security")
+        elif score >= 50:
+            self.score_label.set_text(f"{score}/100")
+            self.score_label.get_style_context().add_class("status-warn")
+            self.score_desc.set_text("Moderate Security")
+        else:
+            self.score_label.set_text(f"{score}/100")
+            self.score_label.get_style_context().add_class("status-err")
+            self.score_desc.set_text("Low Security")
+
+        self.statusbar.set_text(f"Last updated: {time.strftime('%H:%M:%S')}  |  Mode: {mode}")
+        return False
+
+    def _run_terminal(self, cmd):
+        subprocess.Popen(
+            ["xfce4-terminal", "--title", "ATLAZUS", "--hold", "-e",
+             f"bash -c '{cmd}; echo; echo Press Enter; read'"],
+            start_new_session=True
+        )
+
+    def on_fw_on(self, btn):
+        self._run_terminal("sudo ufw --force enable && sudo ufw status verbose")
+    def on_fw_off(self, btn):
+        self._run_terminal("sudo ufw disable")
+    def on_privacy(self, btn):
+        self._run_terminal("sudo atlazus-mode privacy")
+    def on_stealth(self, btn):
+        self._run_terminal("sudo atlazus-mode stealth")
+    def on_normal(self, btn):
+        self._run_terminal("sudo atlazus-mode normal")
+    def on_tor_on(self, btn):
+        self._run_terminal("sudo systemctl start tor && systemctl status tor --no-pager")
+    def on_tor_off(self, btn):
+        self._run_terminal("sudo systemctl stop tor && echo Tor stopped")
+    def on_update(self, btn):
+        self._run_terminal("sudo apt update && sudo apt upgrade -y")
+
+if __name__ == "__main__":
+    app = AtlazusDashboard()
+    app.connect("destroy", Gtk.main_quit)
+    Gtk.main()

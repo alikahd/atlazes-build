@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ATLAZUS Security Tools
+Comment=Install security and pentesting tools
+Exec=/usr/local/bin/atlazus-security-tools
+Icon=security-high
+Terminal=false
+Categories=System;Security;
+Keywords=security;pentest;hacking;wifi;web;password;network;forensics;

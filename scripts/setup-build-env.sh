@@ -14,6 +14,20 @@ NC='\033[0m'
 
 log()     { echo -e "${GREEN}[+]${NC} $*"; }
 section() { echo -e "\n${CYAN}${BOLD}-- $* --${NC}\n"; }
+apt_update_retry() {
+    local tries=4
+    local delay=8
+    local i
+    for ((i=1; i<=tries; i++)); do
+        if apt-get update -qq; then
+            return 0
+        fi
+        echo "[!] apt-get update failed (attempt ${i}/${tries}); retrying in ${delay}s..."
+        sleep "$delay"
+        delay=$((delay * 2))
+    done
+    return 1
+}
 
 [[ $EUID -ne 0 ]] && { echo "Run as root: sudo ./scripts/setup-build-env.sh"; exit 1; }
 
@@ -22,7 +36,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 section "Setting Up ATLAZES OS Build Environment"
 
 section "Updating System"
-apt-get update -qq
+apt_update_retry
 apt-get upgrade -y
 
 section "Installing Build Dependencies"

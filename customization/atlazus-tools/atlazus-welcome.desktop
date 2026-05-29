@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=ATLAZUS Welcome
+Comment=Welcome to ATLAZUS OS
+Exec=/usr/local/bin/atlazus-welcome
+Icon=atlazus
+Terminal=false
+Categories=System;
+X-GNOME-Autostart-enabled=true
+Hidden=false
+NoDisplay=false

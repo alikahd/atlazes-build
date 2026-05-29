@@ -1,83 +1,121 @@
 # =============================================================================
 # ATLAZUS OS - Additional Packages
-# Base: Debian Live XFCE already includes the desktop and core applications.
-#
-# Goal: keep the ISO private, secure, comfortable, and reasonably small.
-# Heavy background scanners/auditors are not installed by default because they
-# increase ISO size and resource use. Users can install them later with apt:
-# clamav, rkhunter, chkrootkit, lynis, auditd, aide, thunderbird.
+# Base: Debian Live XFCE (already includes desktop + core apps)
+# Only ESSENTIAL additions — keep ISO small
 # =============================================================================
 
-# Firewall
+# ── Firewall ──────────────────────────────────────────────────────────────────
 ufw
 gufw
-nftables
 
-# Mandatory access control and sandboxing
+# ── Access Control & Sandboxing ───────────────────────────────────────────────
 apparmor
 apparmor-utils
 apparmor-profiles
 firejail
 
-# Privacy and anonymity
+# ── Privacy & Anonymity ───────────────────────────────────────────────────────
 tor
 torsocks
 macchanger
 proxychains4
-privoxy
 
-# VPN
+# ── VPN ───────────────────────────────────────────────────────────────────────
 wireguard
 wireguard-tools
 openvpn
 network-manager-openvpn
 network-manager-openvpn-gnome
 
-# Encryption and password tools
+# ── Encryption & Passwords ────────────────────────────────────────────────────
 cryptsetup
 gnupg2
 keepassxc
 pwgen
 
-# Metadata cleaning and secure deletion
+# ── Metadata & Secure Deletion ────────────────────────────────────────────────
 mat2
-libimage-exiftool-perl
 wipe
 bleachbit
 
-# Updates and certificates
-unattended-upgrades
-apt-listchanges
+# ── Network Tools ─────────────────────────────────────────────────────────────
+net-tools
+nmap
+traceroute
+dnsutils
+git
+curl
+wget
+
+# ── APT & System ─────────────────────────────────────────────────────────────
+gnupg
+debian-archive-keyring
 ca-certificates
 openssl
-gnome-keyring
+systemd-timesyncd
+unattended-upgrades
 
-# Calamares installer
+# ── Calamares Installer ───────────────────────────────────────────────────────
 calamares
 python3-yaml
 python3-jsonschema
 
-# Branding and boot splash
+# ── Welcome Screen ────────────────────────────────────────────────────────────
+zenity
+
+# ── Branding ─────────────────────────────────────────────────────────────────
 plymouth
 plymouth-themes
 plymouth-label
 librsvg2-bin
 
-# Lightweight look and feel
+# ── Themes ────────────────────────────────────────────────────────────────────
 arc-theme
 papirus-icon-theme
 adwaita-icon-theme
 fonts-cantarell
 fonts-dejavu
+fonts-noto
+fonts-noto-color-emoji
 
-# Multi-language support
+# ── UX Improvements ───────────────────────────────────────────────────────────
+xfce4-whiskermenu-plugin
+xfce4-notifyd
+xfce4-screenshooter
+xfce4-taskmanager
+xfce4-clipman-plugin
+xfce4-power-manager
+mousepad
+ristretto
+file-roller
+htop
+neofetch
+bash-completion
+
+# ── Dashboard (GTK Python) ────────────────────────────────────────────────────
+python3
+python3-gi
+python3-gi-cairo
+gir1.2-gtk-3.0
+gir1.2-glib-2.0
+dmidecode
+
+# ── VirtualBox Guest Additions ────────────────────────────────────────────────
+virtualbox-guest-utils
+virtualbox-guest-x11
+
+# ── Arabic Language Support ───────────────────────────────────────────────────
+fonts-arabeyes
+fonts-hosny-amiri
+fonts-kacst
+ibus-m17n
+m17n-db
+
+# ── Languages ─────────────────────────────────────────────────────────────────
 locales
-locales-all
 xfce4-xkb-plugin
-ibus
-ibus-gtk3
 
-# Bluetooth
+# ── Bluetooth ─────────────────────────────────────────────────────────────────
 bluez
 blueman
 pulseaudio-module-bluetooth
