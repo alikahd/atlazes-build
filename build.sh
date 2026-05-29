@@ -218,13 +218,21 @@ apply_customizations() {
     fi
 
     # نسخ أدوات atlazus CLI
-    if [[ -d "${CUSTOM_DIR}/atlazes-tools" ]]; then
-        log "نسخ atlazus-tools إلى chroot..."
+    TOOLS_SRC_DIR=""
+    if [[ -d "${CUSTOM_DIR}/atlazus-tools" ]]; then
+        TOOLS_SRC_DIR="${CUSTOM_DIR}/atlazus-tools"
+    elif [[ -d "${CUSTOM_DIR}/atlazes-tools" ]]; then
+        TOOLS_SRC_DIR="${CUSTOM_DIR}/atlazes-tools"
+    fi
+
+    if [[ -n "$TOOLS_SRC_DIR" ]]; then
+        log "نسخ atlazus-tools إلى chroot من: $TOOLS_SRC_DIR"
         mkdir -p "$CHROOT/tmp/atlazus-tools"
-        cp -r "${CUSTOM_DIR}/atlazes-tools/"* "$CHROOT/tmp/atlazus-tools/" 2>/dev/null || true
-        # جعل كل الأدوات قابلة للتنفيذ
+        cp -r "${TOOLS_SRC_DIR}/"* "$CHROOT/tmp/atlazus-tools/" 2>/dev/null || true
         find "$CHROOT/tmp/atlazus-tools/" -type f ! -name "*.desktop" \
             -exec chmod +x {} \; 2>/dev/null || true
+    else
+        warn "مجلد atlazus-tools غير موجود — سيتم تخطّي تثبيت الأدوات"
     fi
 
     # نسخ إعدادات Calamares

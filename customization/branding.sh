@@ -10,7 +10,17 @@ log()  { echo "[ATLAZUS] $*"; }
 warn() { echo "[ATLAZUS][!] $*" >&2; }
 
 ASSETS_SRC="/tmp/atlazus-assets"
-TOOLS_SRC="/tmp/atlazus-tools"
+
+# TOOLS_SRC: يبحث في المسارَين المحتملَين
+if [[ -d "/tmp/atlazus-tools" ]]; then
+    TOOLS_SRC="/tmp/atlazus-tools"
+elif [[ -d "/tmp/customization/atlazus-tools" ]]; then
+    TOOLS_SRC="/tmp/customization/atlazus-tools"
+elif [[ -d "/tmp/customization/atlazes-tools" ]]; then
+    TOOLS_SRC="/tmp/customization/atlazes-tools"
+else
+    TOOLS_SRC="/tmp/atlazus-tools"
+fi
 
 log "=== Starting ATLAZUS branding ==="
 
