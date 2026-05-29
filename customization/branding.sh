@@ -775,6 +775,15 @@ chown -R atlazus:atlazus /home/atlazus/.config 2>/dev/null || true
 # =============================================================================
 log "[14] Installing atlazus CLI tools..."
 
+# تثبيت dependencies للـ Dashboard
+apt-get install -y --no-install-recommends \
+    python3 python3-gi python3-gi-cairo \
+    gir1.2-gtk-3.0 gir1.2-glib-2.0 \
+    2>/dev/null || \
+apt-get install -y --no-install-recommends \
+    python3 python3-gi python3-gi-cairo \
+    2>/dev/null || true
+
 # ── Whisker Menu config ───────────────────────────────────────────────────────
 mkdir -p /etc/skel/.config/xfce4
 cat > /etc/skel/.config/xfce4/whiskermenu-1.rc << 'WHISKER'
@@ -1030,6 +1039,8 @@ fi
 if [[ -z "$ATLAZUS_GREETED" ]]; then
     export ATLAZUS_GREETED=1
     echo -e "\033[0;36m  ATLAZUS OS 2.0 (Horizon)\033[0m  |  Type \033[1matlazus help\033[0m for commands"
+    # fastfetch إذا كان مثبتاً
+    command -v fastfetch &>/dev/null && fastfetch --logo none --structure "Title:Separator:OS:Kernel:Uptime:Memory:CPU:GPU:Terminal" 2>/dev/null || true
 fi
 BASHRC
 
@@ -1098,9 +1109,7 @@ NEOFETCH
 
 cp -r /etc/skel/.config/neofetch /home/atlazus/.config/ 2>/dev/null || true
 cp -r /etc/skel/.config/neofetch /root/.config/ 2>/dev/null || true
-chown -R atlazus:atlazus /home/atlazus/.config/neofetch 2>/dev/null || true
-
-# =============================================================================
+chown -R atlazus:atlazus /home/atlazus/.config/neofetch 2>/dev/null || true# =============================================================================
 # تنظيف
 # =============================================================================
 rm -rf "$WORK_LOGO" 2>/dev/null || true

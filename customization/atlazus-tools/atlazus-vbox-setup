@@ -10,6 +10,7 @@ log() { echo "[ATLAZUS-VBOX] $*"; }
 is_virtualbox() {
     dmidecode -s system-product-name 2>/dev/null | grep -qi "virtualbox" && return 0
     lspci 2>/dev/null | grep -qi "virtualbox" && return 0
+    cat /sys/class/dmi/id/product_name 2>/dev/null | grep -qi "virtualbox" && return 0
     return 1
 }
 
@@ -17,32 +18,55 @@ is_virtualbox || { log "Not running in VirtualBox, skipping."; exit 0; }
 
 log "VirtualBox detected — setting up Guest Additions..."
 
-# تثبيت Guest Additions من المستودع
-apt-get update -qq 2>/dev/null || true
-apt-get install -y --no-install-recommends \
-    virtualbox-guest-utils \
-    virtualbox-guest-x11 \
-    2>/dev/null || true
+# virtualbox-guest-utils غير موجود في Trixie الرسمي
+# الحل: تثبيت من ISO المرفق مع VirtualBox (الأكثر موثوقية)
 
-# تفعيل الخدمات
-systemctl enable virtualbox-guest-utils 2>/dev/null || true
-systemctl start  virtualbox-guest-utils 2>/dev/null || true
+# محاولة 1: من ISO المرفق مع VirtualBox (/dev/cdrom)
+if [[ -b /dev/cdrom ]] || [[ -b /dev/sr0 ]]; then
+    CDROM="/dev/cdrom"
+    [[ -b /dev/sr0 ]] && CDROM="/dev/sr0"
+    mkdir -p /mnt/vbox-ga
+    if mount "$CDROM" /mnt/vbox-ga 2>/dev/null; then
+        if [[ -f /mnt/vbox-ga/VBoxLinuxAdditions.run ]]; then
+            log "Installing from VirtualBox ISO..."
+            apt-get install -y --no-install-recommends \
+                build-essential dkms \
+                linux-headers-$(uname -r) 2>/dev/null || true
+            bash /mnt/vbox-ga/VBoxLinuxAdditions.run --nox11 2>/dev/null || true
+            log "✓ Guest Additions installed from ISO"
+        fi
+        umount /mnt/vbox-ga 2>/dev/null || true
+    fi
+fi
 
-# إضافة المستخدم لمجموعة vboxsf (Shared Folders)
+# محاولة 2: تثبيت open-vm-tools كبديل (يعمل مع VirtualBox أيضاً)
+if ! command -v VBoxClient &>/dev/null; then
+    log "Trying open-vm-tools as fallback..."
+    apt-get update -qq 2>/dev/null || true
+    apt-get install -y --no-install-recommends \
+        open-vm-tools \
+        open-vm-tools-desktop \
+        2>/dev/null || true
+fi
+
+# إضافة المستخدم لمجموعة vboxsf
 if getent group vboxsf &>/dev/null; then
     usermod -aG vboxsf atlazus 2>/dev/null || true
 fi
 
-# إعداد Shared Clipboard + Drag & Drop
+# تشغيل VBoxClient إذا كان متاحاً
 if command -v VBoxClient &>/dev/null; then
-    VBoxClient --clipboard 2>/dev/null || true
-    VBoxClient --draganddrop 2>/dev/null || true
-    VBoxClient --seamless 2>/dev/null || true
-    VBoxClient --display 2>/dev/null || true
+    VBoxClient --clipboard    2>/dev/null || true
+    VBoxClient --draganddrop  2>/dev/null || true
+    VBoxClient --seamless     2>/dev/null || true
+    VBoxClient --display      2>/dev/null || true
+    log "✓ VBoxClient services started"
 fi
 
-log "VirtualBox Guest Additions configured."
-log "  ✓ Shared Clipboard enabled"
-log "  ✓ Drag & Drop enabled"
-log "  ✓ Auto-resize display enabled"
-log "  ✓ Shared Folders: add user to vboxsf group"
+# تحسين الأداء في VirtualBox بدون Guest Additions
+# تعطيل compositor لأداء أفضل
+if command -v xfconf-query &>/dev/null; then
+    xfconf-query -c xfwm4 -p /general/use_compositing -s false 2>/dev/null || true
+fi
+
+log "VirtualBox setup complete."
